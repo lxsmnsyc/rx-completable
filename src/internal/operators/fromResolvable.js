@@ -1,7 +1,7 @@
 import AbortController from 'abort-controller';
 import { onErrorHandler, onCompleteHandler } from '../utils';
 import Completable from '../../completable';
-import { error } from '../operators';
+import error from './error';
 
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = observer;
