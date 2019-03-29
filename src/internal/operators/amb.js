@@ -1,7 +1,7 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
 import { isIterable, cleanObserver } from '../utils';
-import { error } from '../operators';
+import error from './error';
 
 /**
  * @ignore
