@@ -21,13 +21,11 @@ function subscribeActual(observer) {
 
   const { sources } = this;
 
-  const size = sources.length;
-
-  for (let i = 0; i < size; i += 1) {
+  // eslint-disable-next-line no-restricted-syntax
+  for (const completable of sources) {
     if (signal.aborted) {
       return;
     }
-    const completable = sources[i];
 
     if (completable instanceof Completable) {
       completable.subscribeWith({
