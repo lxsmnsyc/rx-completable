@@ -10,13 +10,18 @@ function subscribeActual(observer) {
     onSubscribe,
     onComplete,
     onError(x) {
+      let result;
       try {
-        item(x);
+        result = item(x);
       } catch (e) {
         onError([x, e]);
         return;
       }
-      onComplete();
+      if (result) {
+        onComplete();
+      } else {
+        onError(x);
+      }
     },
   });
 }
