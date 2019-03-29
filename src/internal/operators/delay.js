@@ -1,40 +1,63 @@
+import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { immediateError, cleanObserver } from '../utils';
 
 /**
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+  const { onComplete, onError, onSubscribe } = observer;
 
-  let result;
+  const { amount, doDelayError } = this;
 
-  let err;
-  try {
-    result = this.supplier();
-    if (!(result instanceof Completable)) {
-      throw new Error('Completable.defer: supplier returned a non-Completable.');
+  let timeout;
+
+  const controller = new AbortController();
+
+  const { signal } = controller;
+
+  onSubscribe(controller);
+
+  if (signal.aborted) {
+    return;
+  }
+
+  signal.addEventListener('abort', () => {
+    if (typeof timeout !== 'undefined') {
+      clearTimeout(timeout);
     }
-  } catch (e) {
-    err = e;
-  }
+  });
 
-  if (typeof err !== 'undefined') {
-    immediateError(observer, err);
-  } else {
-    result.subscribeWith({
-      onSubscribe,
-      onComplete,
-      onError,
-    });
-  }
+  this.source.subscribeWith({
+    onSubscribe(ac) {
+      signal.addEventListener('abort', () => {
+        ac.abort();
+      });
+    },
+    onComplete() {
+      timeout = setTimeout(() => {
+        onComplete();
+        controller.abort();
+      }, amount);
+    },
+    onError(x) {
+      timeout = setTimeout(() => {
+        onError(x);
+        controller.abort();
+      }, doDelayError ? amount : 0);
+    },
+  });
 }
 /**
  * @ignore
  */
-export default (supplier) => {
+export default (source, amount, doDelayError) => {
+  if (typeof amount !== 'number') {
+    return source;
+  }
   const completable = new Completable();
-  completable.supplier = supplier;
+  completable.source = source;
+  completable.amount = amount;
+  completable.doDelayError = doDelayError;
   completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
