@@ -18,7 +18,7 @@ function subscribeActual(observer) {
     return;
   }
 
-  const { source, predicate } = this;
+  const { source, times } = this;
 
   let retries = 0;
 
@@ -34,10 +34,8 @@ function subscribeActual(observer) {
       },
       onComplete() {
         onComplete();
-        if (typeof predicate === 'function') {
-          const result = predicate(retries);
-
-          if (result) {
+        if (typeof times === 'number') {
+          if (retries <= times) {
             sub();
           }
         } else {
@@ -57,10 +55,18 @@ function subscribeActual(observer) {
 /**
  * @ignore
  */
-export default (source, predicate) => {
+export default (source, times) => {
+  if (typeof times !== 'undefined') {
+    if (typeof times !== 'number') {
+      return source;
+    }
+    if (times <= 0) {
+      return source;
+    }
+  }
   const completable = new Completable();
   completable.source = source;
-  completable.predicate = predicate;
+  completable.times = times;
   completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
