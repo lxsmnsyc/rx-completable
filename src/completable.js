@@ -633,7 +633,7 @@ export default class Completable {
    * the amount of time in milliseconds.
    * @returns {Completable}
    */
-  timer(amount) {
+  static timer(amount) {
     return timer(this, amount);
   }
 
