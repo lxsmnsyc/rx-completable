@@ -7,11 +7,15 @@ import { immediateComplete } from '../utils';
 function subscribeActual(observer) {
   immediateComplete(observer);
 }
+
+let INSTANCE;
 /**
  * @ignore
  */
 export default () => {
-  const single = new Completable();
-  single.subscribeActual = subscribeActual.bind(single);
-  return single;
+  if (typeof INSTANCE === 'undefined') {
+    INSTANCE = new Completable();
+    INSTANCE.subscribeActual = subscribeActual.bind(INSTANCE);
+  }
+  return INSTANCE;
 };
