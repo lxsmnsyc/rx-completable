@@ -29,6 +29,7 @@ export { default as never } from './operators/never';
 export { default as onErrorComplete } from './operators/onErrorComplete';
 export { default as onErrorResumeNext } from './operators/onErrorResumeNext';
 export { default as repeat } from './operators/repeat';
+export { default as repeatUntil } from './operators/repeatUntil';
 export { default as retry } from './operators/retry';
 export { default as startWith } from './operators/startWith';
 export { default as takeUntil } from './operators/takeUntil';
