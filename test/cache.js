@@ -16,19 +16,19 @@ describe('#cache', () => {
   /**
    *
    */
-  it('should signal cached success value', (done) => {
+  it('should signal cached complete', (done) => {
     let flag;
     const completable = Completable.complete().delay(100).cache();
 
     setTimeout(() => {
       completable.subscribe(
         () => { flag = true; },
-        done,
+        () => done(false),
       );
       setTimeout(() => {
         completable.subscribe(
-          x => (flag ? done() : done(x)),
-          done,
+          () => (flag ? done() : done(false)),
+          () => done(false),
         );
       }, 100);
     }, 200);
@@ -42,14 +42,14 @@ describe('#cache', () => {
 
     setTimeout(() => {
       completable.subscribe(
-        done,
+        () => done(false),
         () => { flag = true; },
       );
 
       setTimeout(() => {
         completable.subscribe(
-          done,
-          e => (flag && e instanceof Error ? done() : done(e)),
+          () => done(false),
+          () => (flag ? done() : done(false)),
         );
       }, 100);
     }, 200);
