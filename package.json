@@ -25,7 +25,6 @@
     "browser": "npm run linux-browser || npm run win-browser",
     "minify": "npm run linux-minify || npm run win-minify",
     "build": "npm run cjs && npm run minify && npm run docs && npm test"
-  
   },
   "repository": {
     "type": "git",
