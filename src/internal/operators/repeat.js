@@ -33,10 +33,11 @@ function subscribeActual(observer) {
         signal.addEventListener('abort', () => ac.abort());
       },
       onComplete() {
-        onComplete();
         if (typeof times === 'number') {
           if (retries <= times) {
             sub();
+          } else {
+            onComplete();
           }
         } else {
           sub();
