@@ -1,0 +1,2628 @@
+var Completable = (function (AbortController) {
+  'use strict';
+
+  AbortController = AbortController && AbortController.hasOwnProperty('default') ? AbortController['default'] : AbortController;
+
+  /**
+   * @ignore
+   */
+  const isIterable = obj => typeof obj === 'object' && typeof obj[Symbol.iterator] === 'function';
+  /**
+   * @ignore
+   */
+  const isObserver = obj => typeof obj === 'object' && typeof obj.onSubscribe === 'function';
+  /**
+   * @ignore
+   */
+  const toCallable = x => () => x;
+  /**
+   * @ignore
+   */
+  const isPromise = obj => (obj instanceof Promise) || (!!obj && (typeof obj === 'object' || typeof obj === 'function') && typeof obj.then === 'function');
+  /**
+   * @ignore
+   */
+  function onCompleteHandler() {
+    const { onComplete, controller } = this;
+    if (controller.signal.aborted) {
+      return;
+    }
+    try {
+      onComplete();
+    } finally {
+      controller.abort();
+    }
+  }
+  /**
+   * @ignore
+   */
+  function onErrorHandler(err) {
+    const { onError, controller } = this;
+    let report = err;
+    if (!(err instanceof Error)) {
+      report = new Error('onError called with a non-Error value.');
+    }
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    try {
+      onError(report);
+    } finally {
+      controller.abort();
+    }
+  }
+  /**
+   * @ignore
+   */
+  const identity = x => x;
+  /**
+   * @ignore
+   */
+  const throwError = (x) => { throw x; };
+  /**
+   * @ignore
+   */
+  const cleanObserver = x => ({
+    onSubscribe: x.onSubscribe,
+    onComplete: typeof x.onComplete === 'function' ? x.onComplete : identity,
+    onError: typeof x.onError === 'function' ? x.onError : throwError,
+  });
+  /**
+   * @ignore
+   */
+  const immediateComplete = (o) => {
+    // const disposable = new SimpleDisposable();
+    const { onSubscribe, onComplete } = cleanObserver(o);
+    const controller = new AbortController();
+    onSubscribe(controller);
+
+    if (!controller.signal.aborted) {
+      onComplete();
+      controller.abort();
+    }
+  };
+  /**
+   * @ignore
+   */
+  const immediateError = (o, x) => {
+    const { onSubscribe, onError } = cleanObserver(o);
+    const controller = new AbortController();
+    onSubscribe(controller);
+
+    if (!controller.signal.aborted) {
+      onError(x);
+      controller.abort();
+    }
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual(observer) {
+    let err;
+
+    try {
+      err = this.supplier();
+
+      if (typeof err === 'undefined') {
+        throw new Error('Completable.error: Error supplier returned an undefined value.');
+      }
+    } catch (e) {
+      err = e;
+    }
+    immediateError(observer, err);
+  }
+  /**
+   * @ignore
+   */
+  var error = (value) => {
+    let report = value;
+    if (!(value instanceof Error)) {
+      report = new Error('Completable.error received a non-Error value.');
+    }
+
+    if (typeof value !== 'function') {
+      report = toCallable(report);
+    }
+    const completable = new Completable();
+    completable.supplier = report;
+    completable.subscribeActual = subscribeActual.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$1(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { sources } = this;
+
+    // eslint-disable-next-line no-restricted-syntax
+    for (const completable of sources) {
+      if (signal.aborted) {
+        return;
+      }
+
+      if (completable instanceof Completable) {
+        completable.subscribeWith({
+          onSubscribe(ac) {
+            signal.addEventListener('abort', () => ac.abort());
+          },
+          // eslint-disable-next-line no-loop-func
+          onComplete() {
+            onComplete();
+            controller.abort();
+          },
+          onError(x) {
+            onError(x);
+            controller.abort();
+          },
+        });
+      } else {
+        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        controller.abort();
+        break;
+      }
+    }
+  }
+  /**
+   * @ignore
+   */
+  var amb = (sources) => {
+    if (!isIterable(sources)) {
+      return error(new Error('Completable.amb: sources is not Iterable.'));
+    }
+    const completable = new Completable();
+    completable.sources = sources;
+    completable.subscribeActual = subscribeActual$1.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$2(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const sharedComplete = () => {
+      if (!signal.aborted) {
+        onComplete();
+        controller.abort();
+      }
+    };
+    const sharedError = (x) => {
+      if (!signal.aborted) {
+        onError(x);
+        controller.abort();
+      }
+    };
+
+    const { source, other } = this;
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete: sharedComplete,
+      onError: sharedError,
+    });
+    other.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete: sharedComplete,
+      onError: sharedError,
+    });
+  }
+  /**
+   * @ignore
+   */
+  var ambWith = (source, other) => {
+    if (!(other instanceof Completable)) {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.other = other;
+    completable.subscribeActual = subscribeActual$2.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$3(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, other } = this;
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        other.subscribeWith({
+          onSubscribe(ac) {
+            signal.addEventListener('abort', () => ac.abort());
+          },
+          onComplete() {
+            onComplete();
+            controller.abort();
+          },
+          onError(x) {
+            onError(x);
+            controller.abort();
+          },
+        });
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var andThen = (source, other) => {
+    if (!(other instanceof Completable)) {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.other = other;
+    completable.subscribeActual = subscribeActual$3.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$4(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const {
+      source, cached, observers, subscribed,
+    } = this;
+
+    if (!cached) {
+      const index = observers.length;
+      observers[index] = observer;
+
+      const controller = new AbortController();
+
+      controller.signal.addEventListener('abort', () => {
+        observers.splice(index, 1);
+      });
+
+      onSubscribe(controller);
+
+      if (!subscribed) {
+        source.subscribeWith({
+          onSubscribe() {
+            // not applicable
+          },
+          onComplete: () => {
+            this.cached = true;
+
+            // eslint-disable-next-line no-restricted-syntax
+            for (const obs of observers) {
+              obs.onComplete();
+            }
+            this.observers = undefined;
+          },
+          onError: (x) => {
+            this.cached = true;
+            this.error = x;
+
+            // eslint-disable-next-line no-restricted-syntax
+            for (const obs of observers) {
+              obs.onError(x);
+            }
+            this.observers = undefined;
+          },
+        });
+        this.subscribed = true;
+      }
+    } else {
+      const controller = new AbortController();
+      onSubscribe(controller);
+
+      const { error } = this;
+      if (typeof error !== 'undefined') {
+        onError(error);
+      } else {
+        onComplete();
+      }
+      controller.abort();
+    }
+  }
+
+  /**
+   * @ignore
+   */
+  var cache = (source) => {
+    const completable = new Completable();
+    completable.source = source;
+    completable.cached = false;
+    completable.subscribed = false;
+    completable.observers = [];
+    completable.subscribeActual = subscribeActual$4.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$5(observer) {
+    immediateComplete(observer);
+  }
+
+  let INSTANCE;
+  /**
+   * @ignore
+   */
+  var complete = () => {
+    if (typeof INSTANCE === 'undefined') {
+      INSTANCE = new Completable();
+      INSTANCE.subscribeActual = subscribeActual$5.bind(INSTANCE);
+    }
+    return INSTANCE;
+  };
+
+  /**
+   * @ignore
+   */
+  var compose = (source, transformer) => {
+    if (typeof transformer !== 'function') {
+      return source;
+    }
+
+    let result;
+
+    try {
+      result = transformer(source);
+
+      if (!(result instanceof Completable)) {
+        throw new Error('Completable.compose: transformer returned a non-Completable.');
+      }
+    } catch (e) {
+      result = error(e);
+    }
+
+    return result;
+  };
+
+  /* eslint-disable no-restricted-syntax */
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$6(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { sources } = this;
+
+    const buffer = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const completable of sources) {
+      if (signal.aborted) {
+        return;
+      }
+      if (completable instanceof Completable) {
+        buffer.unshift(completable);
+      } else {
+        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        controller.abort();
+        break;
+      }
+    }
+
+    if (signal.aborted) {
+      return;
+    }
+
+    let current;
+    for (const completable of buffer) {
+      if (typeof current === 'undefined') {
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              signal.addEventListener('abort', () => ac.abort());
+            },
+            onComplete() {
+              onComplete();
+              controller.abort();
+            },
+            onError(x) {
+              onError(x);
+              controller.abort();
+            },
+          });
+        };
+      } else {
+        const prev = current;
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              signal.addEventListener('abort', () => ac.abort());
+            },
+            onComplete() {
+              prev();
+            },
+            onError(x) {
+              onError(x);
+              controller.abort();
+            },
+          });
+        };
+      }
+    }
+
+    current();
+  }
+  /**
+   * @ignore
+   */
+  var concat = (sources) => {
+    if (!isIterable(sources)) {
+      return error(new Error('Completable.concat: sources is not Iterable.'));
+    }
+    const completable = new Completable();
+    completable.sources = sources;
+    completable.subscribeActual = subscribeActual$6.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$7(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const emitter = new AbortController();
+    emitter.onComplete = onCompleteHandler.bind(this);
+    emitter.onError = onErrorHandler.bind(this);
+
+    this.controller = emitter;
+    this.onComplete = onComplete;
+    this.onError = onError;
+
+    onSubscribe(emitter);
+
+    try {
+      this.subscriber(emitter);
+    } catch (ex) {
+      emitter.onError(ex);
+    }
+  }
+  /**
+   * @ignore
+   */
+  var create = (subscriber) => {
+    if (typeof subscriber !== 'function') {
+      return error(new Error('Completable.create: There are no subscribers.'));
+    }
+    const single = new Completable();
+    single.subscriber = subscriber;
+    single.subscribeActual = subscribeActual$7.bind(single);
+    return single;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$8(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    let result;
+
+    let err;
+    try {
+      result = this.supplier();
+      if (!(result instanceof Completable)) {
+        throw new Error('Completable.defer: supplier returned a non-Completable.');
+      }
+    } catch (e) {
+      err = e;
+    }
+
+    if (typeof err !== 'undefined') {
+      immediateError(observer, err);
+    } else {
+      result.subscribeWith({
+        onSubscribe,
+        onComplete,
+        onError,
+      });
+    }
+  }
+  /**
+   * @ignore
+   */
+  var defer = (supplier) => {
+    const completable = new Completable();
+    completable.supplier = supplier;
+    completable.subscribeActual = subscribeActual$8.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$9(observer) {
+    const { onComplete, onError, onSubscribe } = observer;
+
+    const { amount, doDelayError } = this;
+
+    let timeout;
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    signal.addEventListener('abort', () => {
+      if (typeof timeout !== 'undefined') {
+        clearTimeout(timeout);
+      }
+    });
+
+    this.source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => {
+          ac.abort();
+        });
+      },
+      onComplete() {
+        timeout = setTimeout(() => {
+          onComplete();
+          controller.abort();
+        }, amount);
+      },
+      onError(x) {
+        timeout = setTimeout(() => {
+          onError(x);
+          controller.abort();
+        }, doDelayError ? amount : 0);
+      },
+    });
+  }
+  /**
+   * @ignore
+   */
+  var delay = (source, amount, doDelayError) => {
+    if (typeof amount !== 'number') {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.amount = amount;
+    completable.doDelayError = doDelayError;
+    completable.subscribeActual = subscribeActual$9.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$a(observer) {
+    const { onComplete, onError, onSubscribe } = observer;
+
+    const { amount } = this;
+
+    let timeout;
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    signal.addEventListener('abort', () => {
+      if (typeof timeout !== 'undefined') {
+        clearTimeout(timeout);
+      }
+    });
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    timeout = setTimeout(() => {
+      this.source.subscribeWith({
+        onSubscribe(ac) {
+          signal.addEventListener('abort', () => ac.abort());
+        },
+        onComplete() {
+          onComplete();
+          controller.abort();
+        },
+        onError(x) {
+          onError(x);
+          controller.abort();
+        },
+      });
+    }, amount);
+  }
+  /**
+   * @ignore
+   */
+  var delaySubscription = (source, amount) => {
+    if (typeof amount !== 'number') {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.amount = amount;
+    completable.subscribeActual = subscribeActual$a.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$b(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete() {
+        onComplete();
+        callable();
+      },
+      onError(x) {
+        onError(x);
+        callable();
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doAfterTerminate = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$b.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$c(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    let called = false;
+    source.subscribeWith({
+      onSubscribe(ac) {
+        ac.signal.addEventListener('abort', () => {
+          if (!called) {
+            callable();
+            called = true;
+          }
+        });
+        onSubscribe(ac);
+      },
+      onComplete() {
+        onComplete();
+        if (!called) {
+          callable();
+          called = true;
+        }
+      },
+      onError(x) {
+        onError(x);
+        if (!called) {
+          callable();
+          called = true;
+        }
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doFinally = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$c.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$d(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        ac.signal.addEventListener('abort', callable);
+        onSubscribe(ac);
+      },
+      onComplete,
+      onError,
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnAbort = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$d.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$e(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete() {
+        callable();
+        onComplete();
+      },
+      onError,
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnComplete = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$e.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$f(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete,
+      onError(x) {
+        callable(x);
+        onError(x);
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnError = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$f.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$g(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete() {
+        callable();
+        onComplete();
+      },
+      onError(x) {
+        callable(undefined, x);
+        onError(x);
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnEvent = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$g.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$h(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe(d) {
+        callable(d);
+        onSubscribe(d);
+      },
+      onComplete,
+      onError,
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnSubscribe = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$h.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$i(observer) {
+    const { onSubscribe, onComplete, onError } = observer;
+
+    const { source, callable } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete(x) {
+        callable();
+        onComplete(x);
+      },
+      onError(x) {
+        callable();
+        onError(x);
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var doOnTerminate = (source, callable) => {
+    if (typeof callable !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$i.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$j(observer) {
+    const { onComplete, onError, onSubscribe } = observer;
+
+    const controller = new AbortController();
+
+    onSubscribe(controller);
+
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    this.controller = controller;
+    this.onComplete = onComplete;
+    this.onError = onError;
+
+    this.promise.then(
+      onCompleteHandler.bind(this),
+      onErrorHandler.bind(this),
+    );
+  }
+  /**
+   * @ignore
+   */
+  var fromPromise = (promise) => {
+    if (!isPromise(promise)) {
+      return error(new Error('Completable.fromPromise: expects a Promise-like value.'));
+    }
+    const completable = new Completable();
+    completable.promise = promise;
+    completable.subscribeActual = subscribeActual$j.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$k(observer) {
+    const { onComplete, onError, onSubscribe } = observer;
+
+    const controller = new AbortController();
+
+    onSubscribe(controller);
+
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    this.controller = controller;
+    this.onComplete = onComplete;
+    this.onError = onError;
+
+    const resolve = onCompleteHandler.bind(this);
+    const reject = onErrorHandler.bind(this);
+
+    let result;
+    try {
+      result = this.callable();
+    } catch (e) {
+      reject(e);
+      return;
+    }
+
+    if (isPromise(result)) {
+      fromPromise(result).subscribe(onComplete, onError);
+    } else {
+      resolve(result);
+    }
+  }
+  /**
+   * @ignore
+   */
+  var fromCallable = (callable) => {
+    if (typeof callable !== 'function') {
+      return error(new Error('Completable.fromCallable: callable received is not a function.'));
+    }
+    const completable = new Completable();
+    completable.callable = callable;
+    completable.subscribeActual = subscribeActual$k.bind(completable);
+    return completable;
+  };
+
+  function subscribeActual$l(observer) {
+    const { onComplete, onError, onSubscribe } = observer;
+
+    const controller = new AbortController();
+
+    onSubscribe(controller);
+
+    if (controller.signal.aborted) {
+      return;
+    }
+
+    this.controller = controller;
+    this.onComplete = onComplete;
+    this.onError = onError;
+
+    const resolve = onCompleteHandler.bind(this);
+    const reject = onErrorHandler.bind(this);
+
+    this.subscriber(resolve, reject);
+  }
+  /**
+   * @ignore
+   */
+  var fromResolvable = (subscriber) => {
+    if (typeof subscriber !== 'function') {
+      return error(new Error('Completable.fromResolvable: expects a function.'));
+    }
+    const completable = new Completable();
+    completable.subscriber = subscriber;
+    completable.subscribeActual = subscribeActual$l.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$m(observer) {
+    let result;
+
+    try {
+      result = this.operator(observer);
+
+      if (!isObserver(result)) {
+        throw new Error('Completable.lift: operator returned a non-Observer.');
+      }
+    } catch (e) {
+      immediateError(observer, e);
+      return;
+    }
+
+    this.source.subscribeWith(result);
+  }
+
+  /**
+   * @ignore
+   */
+  var lift = (source, operator) => {
+    if (typeof operator !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.operator = operator;
+    completable.subscribeActual = subscribeActual$m.bind(completable);
+    return completable;
+  };
+
+  /* eslint-disable no-loop-func */
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$n(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { sources } = this;
+
+    const buffer = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const completable of sources) {
+      if (signal.aborted) {
+        return;
+      }
+      if (completable instanceof Completable) {
+        buffer.unshift(completable);
+      } else {
+        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        controller.abort();
+        break;
+      }
+    }
+
+    if (signal.aborted) {
+      return;
+    }
+
+    let pending = buffer.length;
+    let current;
+    for (const completable of buffer) {
+      completable.subscribeWith({
+        onSubscribe(ac) {
+          signal.addEventListener('abort', () => ac.abort());
+        },
+        onComplete() {
+          pending -= 1;
+
+          if (pending === 0) {
+            onComplete();
+            controller.abort();
+          }
+        },
+        onError(x) {
+          onError(x);
+          controller.abort();
+        },
+      });
+    }
+
+    current();
+  }
+  /**
+   * @ignore
+   */
+  var merge = (sources) => {
+    if (!isIterable(sources)) {
+      return error(new Error('Completable.concat: sources is not Iterable.'));
+    }
+    const completable = new Completable();
+    completable.sources = sources;
+    completable.subscribeActual = subscribeActual$n.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$o(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, other } = this;
+
+    let flagA = false;
+    let flagB = false;
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        flagA = true;
+
+        if (flagB) {
+          onComplete();
+          controller.abort();
+        }
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+
+    other.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        flagB = true;
+
+        if (flagA) {
+          onComplete();
+          controller.abort();
+        }
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var mergeWith = (source, other) => {
+    if (!(other instanceof Completable)) {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.other = other;
+    completable.subscribeActual = subscribeActual$o.bind(completable);
+    return completable;
+  };
+
+  /* eslint-disable class-methods-use-this */
+
+  const SIGNAL = {
+    aborted: false,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    onabort: () => {},
+  };
+
+
+  const CONTROLLER = {
+    signal: SIGNAL,
+    abort: () => {},
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$p(observer) {
+    observer.onSubscribe(CONTROLLER);
+  }
+  /**
+   * @ignore
+   */
+  let INSTANCE$1;
+  /**
+   * @ignore
+   */
+  var never = () => {
+    if (typeof INSTANCE$1 === 'undefined') {
+      INSTANCE$1 = new Completable();
+      INSTANCE$1.subscribeActual = subscribeActual$p.bind(INSTANCE$1);
+    }
+    return INSTANCE$1;
+  };
+
+  function subscribeActual$q(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const { source, item } = this;
+
+    source.subscribeWith({
+      onSubscribe,
+      onComplete,
+      onError(x) {
+        let result;
+        try {
+          result = item(x);
+        } catch (e) {
+          onError([x, e]);
+          return;
+        }
+        if (result) {
+          onComplete();
+        } else {
+          onError(x);
+        }
+      },
+    });
+  }
+  /**
+   * @ignore
+   */
+  var onErrorComplete = (source, item) => {
+    if (typeof item !== 'function') {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.item = item;
+    completable.subscribeActual = subscribeActual$q.bind(completable);
+    return completable;
+  };
+
+  function subscribeActual$r(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const { source, resumeIfError } = this;
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        onComplete();
+        controller.abort();
+      },
+      onError(x) {
+        let result;
+
+        if (typeof resumeIfError === 'function') {
+          try {
+            result = resumeIfError(x);
+            if (typeof result === 'undefined') {
+              throw new Error('Completable.onErrorResumeNext: returned an non-Completable.');
+            }
+          } catch (e) {
+            onError(new Error([x, e]));
+            return;
+          }
+        } else {
+          result = resumeIfError;
+        }
+
+        result.subscribeWith({
+          onSubscribe(ac) {
+            signal.addEventListener('abort', () => ac.abort());
+          },
+          onComplete() {
+            onComplete();
+            controller.abort();
+          },
+          onError(v) {
+            onError(v);
+            controller.abort();
+          },
+        });
+      },
+    });
+  }
+  /**
+   * @ignore
+   */
+  var onErrorResumeNext = (source, resumeIfError) => {
+    if (!(typeof resumeIfError === 'function' || resumeIfError instanceof Completable)) {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.resumeIfError = resumeIfError;
+    completable.subscribeActual = subscribeActual$r.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$s(observer) {
+    const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, times } = this;
+
+    let retries = 0;
+
+    const sub = () => {
+      if (signal.aborted) {
+        return;
+      }
+      retries += 1;
+
+      source.subscribeWith({
+        onSubscribe(ac) {
+          signal.addEventListener('abort', () => ac.abort());
+        },
+        onComplete() {
+          if (typeof times === 'number') {
+            if (retries <= times) {
+              sub();
+            } else {
+              onComplete();
+            }
+          } else {
+            sub();
+          }
+        },
+        onError(x) {
+          onError(x);
+          controller.abort();
+        },
+      });
+    };
+
+    sub();
+  }
+
+  /**
+   * @ignore
+   */
+  var repeat = (source, times) => {
+    if (typeof times !== 'undefined') {
+      if (typeof times !== 'number') {
+        return source;
+      }
+      if (times <= 0) {
+        return source;
+      }
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.times = times;
+    completable.subscribeActual = subscribeActual$s.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$t(observer) {
+    const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, predicate } = this;
+
+    const sub = () => {
+      if (signal.aborted) {
+        return;
+      }
+
+      source.subscribeWith({
+        onSubscribe(ac) {
+          signal.addEventListener('abort', () => ac.abort());
+        },
+        onComplete() {
+          if (typeof predicate === 'function') {
+            const result = predicate();
+
+            if (result) {
+              onComplete();
+            } else {
+              sub();
+            }
+          } else {
+            sub();
+          }
+        },
+        onError(x) {
+          onError(x);
+          controller.abort();
+        },
+      });
+    };
+
+    sub();
+  }
+
+  /**
+   * @ignore
+   */
+  var repeatUntil = (source, predicate) => {
+    const completable = new Completable();
+    completable.source = source;
+    completable.predicate = predicate;
+    completable.subscribeActual = subscribeActual$t.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$u(observer) {
+    const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, bipredicate } = this;
+
+    let retries = 0;
+
+    const sub = () => {
+      if (signal.aborted) {
+        return;
+      }
+      retries += 1;
+
+      source.subscribeWith({
+        onSubscribe(ac) {
+          signal.addEventListener('abort', () => ac.abort());
+        },
+        onComplete() {
+          onComplete();
+          controller.abort();
+        },
+        onError(x) {
+          if (typeof bipredicate === 'function') {
+            const result = bipredicate(retries, x);
+
+            if (result) {
+              sub();
+            } else {
+              onError(x);
+              controller.abort();
+            }
+          } else {
+            sub();
+          }
+        },
+      });
+    };
+
+    sub();
+  }
+
+  /**
+   * @ignore
+   */
+  var retry = (source, bipredicate) => {
+    const completable = new Completable();
+    completable.source = source;
+    completable.bipredicate = bipredicate;
+    completable.subscribeActual = subscribeActual$u.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$v(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, other } = this;
+
+    other.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        source.subscribeWith({
+          onSubscribe(ac) {
+            signal.addEventListener('abort', () => ac.abort());
+          },
+          onComplete() {
+            onComplete();
+            controller.abort();
+          },
+          onError(x) {
+            onError(x);
+            controller.abort();
+          },
+        });
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  var startWith = (source, other) => {
+    if (!(other instanceof Completable)) {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.other = other;
+    completable.subscribeActual = subscribeActual$v.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$w(observer) {
+    const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const { source, other } = this;
+
+    other.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        if (!signal.aborted) {
+          onError(new Error('Completable.takeUntil: Source cancelled by other Completable.'));
+          controller.abort();
+        }
+      },
+      onError(x) {
+        if (!signal.aborted) {
+          onError(new Error(['Completable.takeUntil: Source cancelled by other Completable.', x]));
+          controller.abort();
+        }
+      },
+    });
+
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        if (!signal.aborted) {
+          onComplete();
+          controller.abort();
+        }
+      },
+      onError(x) {
+        if (!signal.aborted) {
+          onError(x);
+          controller.abort();
+        }
+      },
+    });
+  }
+
+  /**
+   * @ignore
+   */
+  const takeUntil = (source, other) => {
+    if (!(other instanceof Completable)) {
+      return source;
+    }
+
+    const completable = new Completable();
+    completable.source = source;
+    completable.other = other;
+    completable.subscribeActual = subscribeActual$w.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$x(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const { amount } = this;
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const timeout = setTimeout(
+      () => {
+        onError(new Error('Completable.timeout: TimeoutException (no complete signals within the specified timeout).'));
+        controller.abort();
+      },
+      amount,
+    );
+
+    signal.addEventListener('abort', () => {
+      clearTimeout(timeout);
+    });
+
+    this.source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        onComplete();
+        controller.abort();
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+  }
+  /**
+   * @ignore
+   */
+  var timeout = (source, amount) => {
+    if (typeof amount !== 'number') {
+      return source;
+    }
+    const completable = new Completable();
+    completable.source = source;
+    completable.amount = amount;
+    completable.subscribeActual = subscribeActual$x.bind(completable);
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$y(observer) {
+    const { onComplete, onSubscribe } = cleanObserver(observer);
+
+
+    const controller = new AbortController();
+
+    const { signal } = controller;
+
+    onSubscribe(controller);
+
+    if (signal.aborted) {
+      return;
+    }
+
+    const timeout = setTimeout(onComplete, this.amount);
+
+    signal.addEventListener('abort', () => {
+      clearTimeout(timeout);
+    });
+  }
+  /**
+   * @ignore
+   */
+  var timer = (amount) => {
+    if (typeof amount !== 'number') {
+      return error(new Error('Completable.timer: "amount" is not a number.'));
+    }
+    const completable = new Completable();
+    completable.amount = amount;
+    completable.subscribeActual = subscribeActual$y.bind(completable);
+    return completable;
+  };
+
+  /* eslint-disable import/no-cycle */
+
+  /**
+   * @license
+   * MIT License
+   *
+   * Copyright (c) 2019 Alexis Munsayac
+   * Permission is hereby granted, free of charge, to any person obtaining a copy
+   * of this software and associated documentation files (the "Software"), to deal
+   * in the Software without restriction, including without limitation the rights
+   * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   * copies of the Software, and to permit persons to whom the Software is
+   * furnished to do so, subject to the following conditions:
+   *
+   * The above copyright notice and this permission notice shall be included in all
+   * copies or substantial portions of the Software.
+   *
+   * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   * SOFTWARE.
+   *
+   *
+   * @author Alexis Munsayac <alexis.munsayac@gmail.com>
+   * @copyright Alexis Munsayac 2019
+   */
+
+  /**
+   * The Completable class represents a deferred computation
+   * without any value but only indication for completion
+   * or exception.
+   *
+   * Completable behaves similarly to Observable except that
+   * it can only emit either a completion or error signal
+   * (there is no onNext or onSuccess as with the other
+   * reactive types).
+   *
+   * The Completable operates with the following sequential protocol:
+   *
+   * onSubscribe (onError | onComplete)?
+   *
+   * Note that as with the Observable protocol, onError and
+   * onComplete are mutually exclusive events.
+   *
+   * Like Observable, a running Completable can be stopped through
+   * the AbortController instance provided to consumers through
+   * Observer.onSubscribe(AbortController).
+   *
+   * Like an Observable, a Completable is lazy, can be either
+   * "hot" or "cold", synchronous or asynchronous.
+   * Completable instances returned by the methods of this class are
+   * cold.
+   *
+   * The documentation for this class makes use of marble diagrams.
+   * The following legend explains these diagrams:
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.png" class="diagram">
+   */
+  class Completable {
+    /**
+     * Returns a Completable which terminates as soon as
+     * one of the source Completables terminates
+     * (normally or with an error) and disposes all
+     * other Completables.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.amb.png" class="diagram">
+     *
+     * @param {!Iterable} sources
+     * the array of source Completables.
+     * A subscription to each source will occur in the
+     * same order as in this Iterable.
+     * @returns {Completable}
+     */
+    static amb(sources) {
+      return amb(sources);
+    }
+
+    /**
+     * Returns a Completable that emits the a terminated
+     * event of either this Completable or the other
+     * Completable whichever fires first.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.ambWith.png" class="diagram">
+     *
+     * @param {!Completable} other
+     * the other Completable, not null. A subscription to
+     * this provided source will occur after subscribing
+     * to the current source.
+     * @returns {Completable}
+     */
+    ambWith(other) {
+      return ambWith(this, other);
+    }
+
+    /**
+     * Returns a Completable that first runs this Completable
+     * and then the other completable.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.andThen.c.png" class="diagram">
+     *
+     * @param {!Completable} other
+     * the other Completable, not null
+     * @returns {Completable}
+     */
+    andThen(other) {
+      return andThen(this, other);
+    }
+
+    /**
+     * Subscribes to this Completable only once, when the first
+     * Observer subscribes to the result Completable, caches its
+     * terminal event and relays/replays it to observers.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.cache.png" class="diagram">
+     *
+     * @returns {Completable}
+     */
+    cache() {
+      return cache(this);
+    }
+
+    /**
+     * Returns a Completable instance that completes immediately
+     * when subscribed to.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.complete.png" class="diagram">
+     *
+     * @returns {Completable}
+     */
+    static complete() {
+      return complete();
+    }
+
+    /**
+     * Calls the given transformer function with this instance an
+     *  returns the function's resulting Completable.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.compose.png" class="diagram">
+     *
+     * @param {!function(completable: Completable):Completable} transformer
+     * the transformer function, not null
+     * @returns {Completable}
+     */
+    compose(transformer) {
+      return compose(this, transformer);
+    }
+
+    /**
+     * Returns a Completable which completes only when all sources
+     * complete, one after another.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.concat.png" class="diagram">
+     *
+     * @param {!Iterable} sources
+     * the sources to concatenate
+     * @returns {Completable}
+     */
+    static concat(sources) {
+      return concat(sources);
+    }
+
+    /**
+     * Concatenates this Completable with another Completable.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.concatWith.png" class="diagram">
+     *
+     * This is an alias for andThen.
+     * @param {!Completable} other
+     * the other Completable, not null
+     * @returns {Completable}
+     */
+    concatWith(other) {
+      return andThen(this, other);
+    }
+
+    /**
+     * Provides an API (via a cold Completable) that bridges the
+     * reactive world with the callback-style world.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.create.png" class="diagram">
+     *
+     * @param {!function(e: Emitter)} subscriber
+     * the emitter that is called when a Observer subscribes
+     * to the returned Completable
+     * @returns {Completable}
+     */
+    static create(subscriber) {
+      return create(subscriber);
+    }
+
+    /**
+     * Defers the subscription to a Completable instance returned
+     * by a supplier.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.defer.png" class="diagram">
+     *
+     * @param {function():Completable} supplier
+     * the supplier that returns the Completable that will be subscribed to.
+     * @returns {Completable}
+     */
+    static defer(supplier) {
+      return defer(supplier);
+    }
+
+    /**
+     * Returns a Completable which delays the emission of the
+     * completion event by the given time.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.delay.png" class="diagram">
+     *
+     * @param {!number} amount
+     * the amount of time the success signal should be
+     * delayed for (in milliseconds).
+     * @param {?boolean} doDelayError
+     * if true, both success and error signals are delayed.
+     * if false, only success signals are delayed.
+     */
+    delay(amount, doDelayOnError) {
+      return delay(this, amount, doDelayOnError);
+    }
+
+    /**
+     * Delays the actual subscription to the current
+     * Completable until the given time delay elapsed.
+     *
+     * @param {!Number} amount
+     * the time amount to wait with the subscription
+     * (in milliseconds).
+     * @returns {Completable}
+     */
+    delaySubscription(amount) {
+      return delaySubscription(this, amount);
+    }
+
+    /**
+     * Returns a Completable instance that calls the given
+     * onTerminate callback after this Completable completes
+     * normally or with an exception.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doAfterTerminate.png" class="diagram">
+     *
+     * @param {!function} action
+     * the callback to call after this Completable terminates
+     * @returns {Completable}
+     */
+    doAfterTerminate(action) {
+      return doAfterTerminate(this, action);
+    }
+
+    /**
+     * Calls the specified action after this Completable
+     * signals onError or onComplete or gets aborted by
+     * the downstream.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doFinally.png" class="diagram">
+     *
+     * In case of a race between a terminal event and
+     * a dispose call, the provided onFinally action
+     * is executed once per subscription.
+     * @param {!function} action
+     * the action called when this Completable terminates or gets aborted.
+     * @returns {Completable}
+     */
+    doFinally(action) {
+      return doFinally(this, action);
+    }
+
+    /**
+     * Calls the shared Action if a Observer subscribed
+     * to the current Completable aborts the common
+     * Disposable it received via onSubscribe.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnDispose.png" class="diagram">
+     *
+     * @param {!function} action
+     * the action to call when the child subscriber aborts the subscription.
+     * @returns {Completable}
+     */
+    doOnAbort(action) {
+      return doOnAbort(this, action);
+    }
+
+    /**
+     * Returns a Completable which calls the given onComplete
+     * callback if this Completable completes.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnComplete.png" class="diagram">
+     *
+     * @param {!function} action
+     * the callback to call when this emits an onComplete event
+     */
+    doOnComplete(action) {
+      return doOnComplete(this, action);
+    }
+
+    /**
+     * Returns a Completable which calls the given onError
+     * callback if this Completable emits an error.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnError.png" class="diagram">
+     *
+     * @param {!function(x: Error)} consumer
+     * the error callback
+     * @returns {Completable}
+     */
+    doOnError(consumer) {
+      return doOnError(this, consumer);
+    }
+
+    /**
+     * Returns a Completable which calls the given onEvent callback
+     * with the Error for an onError or undefined for an onComplete
+     * signal from this Completable before delivering said signal
+     * to the downstream.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnEvent.png" class="diagram">
+     *
+     * @param {!function(x: Error)} consumer
+     * the event callback
+     * @returns {Completable}
+     */
+    doOnEvent(consumer) {
+      return doOnEvent(this, consumer);
+    }
+
+    /**
+     * Returns a Completable instance that calls the given onSubscribe
+     * callback with the AbortController that child subscribers receive
+     * on subscription.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnSubscribe.png" class="diagram">
+     *
+     * @param {!function(ac: AbortController)} consumer
+     * the callback called when a child subscriber subscribes
+     * @returns {Completable}
+     */
+    doOnSubscribe(consumer) {
+      return doOnSubscribe(this, consumer);
+    }
+
+    /**
+     * Returns a Completable instance that calls the given onTerminate
+     * callback just before this Completable completes normally or with
+     * an exception.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnTerminate.png" class="diagram">
+     *
+     * @param {!function} action
+     * the callback to call just before this Completable terminates
+     * @returns {Completable}
+     */
+    doOnTerminate(action) {
+      return doOnTerminate(this, action);
+    }
+
+    /**
+     * Creates a Completable with an error.
+     *
+     * Signals an error returned by the callback function
+     * for each individual Observer or returns a Completable
+     * that invokes a subscriber's onError method when
+     * the subscriber subscribes to it.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.error.png" class="diagram">
+     *
+     * @param {!(function():Error|Error)} err
+     * - the callable that is called for each individual
+     * Observer and returns or throws a value to be emitted.
+     * - the particular value to pass to onError
+     * @returns {Completable}
+     */
+    static error(err) {
+      return error(err);
+    }
+
+    /**
+     * Returns a Completable which when subscribed, executes
+     * the callable function, ignores its normal result and
+     * emits onError or onComplete only.
+     *
+     * If the result is a Promise-like instance, the
+     * Observer is then subscribed to the Promise through
+     * the fromPromise operator.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.fromCallable.png" class="diagram">
+     * If the callable throws an exception, the respective Error
+     * is delivered to the downstream via Observer.onError(Error),
+     * except when the downstream has aborted this Completable source.
+     *
+     * @param {!function} callable
+     * the callable instance to execute for each subscriber
+     * @returns {Completable}
+     */
+    static fromCallable(callable) {
+      return fromCallable(callable);
+    }
+
+    /**
+     * Converts a Promise-like instance into a Completable.
+     *
+     * @param {!(Promise|Thennable|PromiseLike)} promise
+     * The promise to be converted into a Completable.
+     * @returns {Completable}
+     */
+    static fromPromise(promise) {
+      return fromPromise(promise);
+    }
+
+    /**
+     * Provides a Promise-like interface for emitting signals.
+     *
+     * @param {!function(resolve: function, reject:function))} fulfillable
+     * A function that accepts two parameters: resolve and reject,
+     * similar to a Promise construct.
+     * @returns {Completable}
+     */
+    static fromResolvable(subscriber) {
+      return fromResolvable(subscriber);
+    }
+
+    /**
+     * This method requires advanced knowledge about building operators,
+     * please consider other standard composition methods first;
+     *
+     * Returns a Completable which, when subscribed to, invokes the operator
+     * method for each individual downstream Completable and allows the
+     * insertion of a custom operator by accessing the downstream's
+     * Observer during this subscription phase and providing a new Observer,
+     * containing the custom operator's intended business logic,
+     * that will be used in the subscription process going further upstream.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.lift.png" class="diagram">
+     *
+     * Generally, such a new Observer will wrap the downstream's Observer
+     * and forwards the onError and onComplete events from the upstream
+     * directly or according to the emission pattern the custom operator's
+     * business logic requires. In addition, such operator can intercept
+     * the flow control calls of abort and signal.abort that would have
+     * traveled upstream and perform additional actions depending on
+     * the same business logic requirements.
+     *
+     * Note that implementing custom operators via this lift()
+     * method adds slightly more overhead by requiring an additional
+     * allocation and indirection per assembled flows. Instead,
+     * using compose() method and  creating a transformer function
+     * with it is recommended.
+     *
+     * @param {!function(observer: Observer)} consumer
+     * the callback called when a child subscriber subscribes
+     * @returns {Completable}
+     */
+    lift(operator) {
+      return lift(this, operator);
+    }
+
+    /**
+     * Returns a Completable instance that subscribes to all sources at once
+     * and completes only when all source Completables complete or one of them
+     * emits an error.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.merge.png" class="diagram">
+     *
+     * @param {Iterable} sources
+     * the iterable sequence of sources.
+     * @returns {Completable}
+     */
+    static merge(sources) {
+      return merge(sources);
+    }
+
+    /**
+     * Returns a Completable which subscribes to this and the other Completable
+     * and completes when both of them complete or one emits an error.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.mergeWith.png" class="diagram">
+     *
+     * @param {Completable} other
+     * the other Completable instance
+     * @returns {Completable}
+     */
+    mergeWith(other) {
+      return mergeWith(this, other);
+    }
+
+    /**
+     * Returns a Completable that never calls onError or onComplete.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.never.png" class="diagram">
+     *
+     * @returns {Completable}
+     * the singleton instance that never calls onError or onComplete
+     */
+    static never() {
+      return never();
+    }
+
+    /**
+     * Returns a Completable instance that if this Completable emits an
+     * error and the predicate returns true, it will emit an onComplete
+     * and swallow the throwable.
+     *
+     * If no predicate is provided, returns a Completable instance that
+     * if this Completable emits an error, it will emit an onComplete
+     * and swallow the error
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.onErrorComplete.png" class="diagram">
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.onErrorComplete.f.png" class="diagram">
+     *
+     * @param {?function(e: Error):boolean} completion
+     * the predicate to call when an Error is emitted which should return
+     * true if the Error should be swallowed and replaced with an onComplete.
+     * @returns {Completable}
+     */
+    onErrorComplete(completion) {
+      return onErrorComplete(this, completion);
+    }
+
+    /**
+     * Returns a Completable instance that when encounters an error from
+     * this Completable, calls the specified mapper function that returns
+     * another Completable instance for it and resumes the execution with it.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.onErrorResumeNext.png" class="diagram">
+     *
+     * @param {function(e:Error):Completable} other
+     * the mapper function that takes the error and should return a
+     * Completable as continuation.
+     * @returns {Completable}
+     */
+    onErrorResumeNext(other) {
+      return onErrorResumeNext(this, other);
+    }
+
+    /**
+     * Returns a Completable that subscribes repeatedly at most
+     * the given times to this Completable. If no amount is given,
+     * subscribes repeatedly until aborted.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.repeat.png" class="diagram">
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.repeat.n.png" class="diagram">
+     *
+     * @param {?number} times
+     * the number of times the resubscription should happen
+     * @returns {Completable}
+     */
+    repeat(times) {
+      return repeat(this, times);
+    }
+
+    /**
+     * Re-subscribe to the current Completable if the given predicate
+     * returns true when the Completable fails with an onError.
+     *
+     * If no predicate is provided, repeatedly re-subscribes to
+     * the current Completable indefinitely if it fails with an onError.
+     *
+     * @param {?function(retries: number, err: Error):boolean} predicate
+     * the predicate called with the resubscription count and the failure
+     * value and should return true if a resubscription should happen.
+     * @returns {Completable}
+     */
+    retry(indicator) {
+      return retry(this, indicator);
+    }
+
+    /**
+     * Returns a Completable that repeatedly subscribes to this Completable
+     * so long as the given stop supplier returns false.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.repeatUntil.png" class="diagram">
+     *
+     * @param {!function():boolean} stopper
+     * the supplier that should return true to stop resubscribing.
+     * @returns {Completable}
+     */
+    repeatUntil(stopper) {
+      return repeatUntil(this, stopper);
+    }
+
+    /**
+     * Returns a Completable which first runs the other Completable
+     * then this completable if the other completed normally.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.startWith.png" class="diagram">
+     *
+     * @param {Completable} other
+     *  the other completable to run first
+     * @returns {Completable}
+     */
+    startWith(other) {
+      return startWith(this, other);
+    }
+
+    /**
+     * Returns a Completable that emits the item emitted by
+     * the source Completable until a second Completable emits an
+     * item. Upon emission of an item from other,
+     * this will emit an error rather than go to
+     * Observer.onSuccess.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.takeUntil.c.png" class="diagram">
+     *
+     * @param {Completable} other
+     * the Completable whose emitted item will cause takeUntil
+     * to emit the item from the source Completable
+     * @returns {Completable}
+     * a Completable that emits the item emitted by the source
+     * Completable until such time as other emits its item
+     */
+    takeUntil(other) {
+      return takeUntil(this, other);
+    }
+
+    /**
+     * Signals a TimeoutException if the current Completable
+     * doesn't signal a completion within the specified
+     * timeout window.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.timeout.png" class="diagram">
+     *
+     * @param {!Number} amount
+     * amount of time in milliseconds.
+     * @returns {Completable}
+     */
+    timeout(amount) {
+      return timeout(this, amount);
+    }
+
+    /**
+     * Signals completion after the given delay for each Observer.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.timer.png" class="diagram">
+     *
+     * @param {!Number} amount
+     * the amount of time in milliseconds.
+     * @returns {Completable}
+     */
+    static timer(amount) {
+      return timer(amount);
+    }
+
+    /**
+     * @desc
+     * Subscribes with an Object that is an Observer.
+     *
+     * An Object is considered as an Observer if:
+     *  - if it has the method onSubscribe
+     *  - if it has the method onComplete (optional)
+     *  - if it has the method onError (optional)
+     *
+     * The onSubscribe method is called when subscribeWith
+     * or subscribe is executed. This method receives an
+     * AbortController instance.
+     *
+     * @param {!Object} observer
+     * @returns {undefined}
+     */
+    subscribeWith(observer) {
+      if (isObserver(observer)) {
+        this.subscribeActual(observer);
+      }
+    }
+
+    /**
+     * @desc
+     * Subscribes to a Completable instance with an onComplete
+     * and an onError method.
+     *
+     * onError receives a string(or an Error object).
+     *
+     * Both are called once.
+     * @param {?function(x: any)} onComplete
+     * the function you have designed to accept the emission
+     * from the Completable
+     * @param {?function(x: any)} onError
+     * the function you have designed to accept any error
+     * notification from the Completable
+     * @returns {AbortController}
+     * an AbortController reference can request the Completable to abort.
+     */
+    subscribe(onComplete, onError) {
+      const controller = new AbortController();
+      let once = false;
+      this.subscribeActual({
+        onSubscribe(ac) {
+          ac.signal.addEventListener('abort', () => {
+            if (!once) {
+              once = true;
+              if (!controller.signal.aborted) {
+                controller.abort();
+              }
+            }
+          });
+          controller.signal.addEventListener('abort', () => {
+            if (!once) {
+              once = true;
+              if (!ac.signal.aborted) {
+                ac.abort();
+              }
+            }
+          });
+        },
+        onComplete,
+        onError,
+      });
+      return controller;
+    }
+
+    /**
+     * Converts the Completable to a Promise instance.
+     *
+     * @returns {Promise}
+     */
+    toPromise() {
+      return new Promise((res, rej) => {
+        this.subscribe(res, rej);
+      });
+    }
+
+    /**
+     * Converts the Completable to a Promise instance
+     * and attaches callbacks to it.
+     *
+     * @param {!function():any} onFulfill
+     * @param {?function(x: Error):any} onReject
+     * @returns {Promise}
+     */
+    then(onFulfill, onReject) {
+      return this.toPromise().then(onFulfill, onReject);
+    }
+
+    /**
+     * Converts the Completable to a Promise instance
+     * and attaches an onRejection callback to it.
+     *
+     * @param {!function(x: Error):any} onReject
+     * @returns {Promise}
+     */
+    catch(onReject) {
+      return this.toPromise().catch(onReject);
+    }
+  }
+
+  /**
+   * @interface
+   * Represents an object that receives notification to
+   * an Observer.
+   *
+   * Emitter is an abstraction layer of the Observer
+   */
+
+  /**
+   * @interface
+   * Represents an object that receives notification from
+   * an Emitter.
+   */
+
+  /* eslint-disable no-unused-vars */
+
+  return Completable;
+
+}(AbortController));
