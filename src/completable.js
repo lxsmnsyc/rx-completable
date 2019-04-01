@@ -53,7 +53,37 @@ import {
   startWith, timeout, timer, takeUntil, repeatUntil,
 } from './internal/operators';
 
-
+/**
+ * The Completable class represents a deferred computation
+ * without any value but only indication for completion
+ * or exception.
+ *
+ * Completable behaves similarly to Observable except that
+ * it can only emit either a completion or error signal
+ * (there is no onNext or onSuccess as with the other
+ * reactive types).
+ *
+ * The Completable operates with the following sequential protocol:
+ *
+ * onSubscribe (onError | onComplete)?
+ *
+ * Note that as with the Observable protocol, onError and
+ * onComplete are mutually exclusive events.
+ *
+ * Like Observable, a running Completable can be stopped through
+ * the AbortController instance provided to consumers through
+ * Observer.onSubscribe(AbortController).
+ *
+ * Like an Observable, a Completable is lazy, can be either
+ * "hot" or "cold", synchronous or asynchronous.
+ * Completable instances returned by the methods of this class are
+ * cold.
+ *
+ * The documentation for this class makes use of marble diagrams.
+ * The following legend explains these diagrams:
+ *
+ * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.png" class="diagram">
+ */
 export default class Completable {
   /**
    * Returns a Completable which terminates as soon as
