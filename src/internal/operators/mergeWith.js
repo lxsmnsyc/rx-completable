@@ -2,6 +2,9 @@ import AbortController from 'abort-controller';
 import { cleanObserver } from '../utils';
 import Completable from '../../completable';
 
+/**
+ * @ignore
+ */
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
@@ -57,6 +60,9 @@ function subscribeActual(observer) {
   });
 }
 
+/**
+ * @ignore
+ */
 export default (source, other) => {
   if (!(other instanceof Completable)) {
     return source;
