@@ -9,7 +9,6 @@
 export default class Emitter extends AbortController {
   /**
    * Emits a completion signal.
-   * @param {!any} value
    * @abstract
    */
   // eslint-disable-next-line class-methods-use-this, no-unused-vars
