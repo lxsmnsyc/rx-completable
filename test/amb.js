@@ -16,7 +16,7 @@ describe('#amb', () => {
   /**
    *
    */
-  it('should signal success from the earliest source.', (done) => {
+  it('should signal complete from the earliest source.', (done) => {
     const completable = Completable.amb([Completable.complete(), Completable.timer(100)]);
     completable.subscribe(
       () => done(),
@@ -40,7 +40,7 @@ describe('#amb', () => {
     const completable = Completable.amb(['Hello', Completable.timer(100)]);
     completable.subscribe(
       () => done(false),
-      e => (e instanceof Error ? done() : done(e)),
+      () => done(),
     );
   });
   /**
@@ -50,7 +50,7 @@ describe('#amb', () => {
     const completable = Completable.amb();
     completable.subscribe(
       () => done(false),
-      e => (e instanceof Error ? done() : done(e)),
+      () => done(),
     );
   });
 });
