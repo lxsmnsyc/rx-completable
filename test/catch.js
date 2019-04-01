@@ -5,17 +5,12 @@ import Completable from '../src/completable';
 /**
  *
  */
-describe('Completable', () => {
+describe('#catch', () => {
   /**
    *
    */
-  describe('#catch', () => {
-    /**
-     *
-     */
-    it('should create a Promise', () => {
-      const completable = Completable.just('Hello').catch(x => x);
-      assert(completable instanceof Promise);
-    });
+  it('should create a Promise', () => {
+    const completable = Completable.error(new Error('Hello')).catch(x => x);
+    assert(completable instanceof Promise);
   });
 });
