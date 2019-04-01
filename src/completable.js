@@ -634,7 +634,7 @@ export default class Completable {
    * @returns {Completable}
    */
   static timer(amount) {
-    return timer(this, amount);
+    return timer(amount);
   }
 
   /**
