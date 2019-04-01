@@ -24,21 +24,21 @@ describe('#ambWith', () => {
   /**
    *
    */
-  it('should signal success from the source (if earlier)', (done) => {
+  it('should signal complete from the source (if earlier)', (done) => {
     const completable = Completable.complete().ambWith(Completable.timer(100));
     completable.subscribe(
       () => done(),
-      done,
+      () => done(false),
     );
   });
   /**
    *
    */
-  it('should signal success from the other (if earlier).', (done) => {
+  it('should signal complete from the other (if earlier).', (done) => {
     const completable = Completable.timer(100).ambWith(Completable.complete());
     completable.subscribe(
       () => done(),
-      done,
+      () => done(false),
     );
   });
   /**
@@ -47,8 +47,8 @@ describe('#ambWith', () => {
   it('should signal error from the source (if earlier).', (done) => {
     const completable = Completable.error(new Error('Hello')).ambWith(Completable.timer(100));
     completable.subscribe(
-      done,
-      e => (e instanceof Error ? done() : done(false)),
+      () => done(false),
+      () => done(),
     );
   });
   /**
@@ -57,8 +57,8 @@ describe('#ambWith', () => {
   it('should signal error from the other (if earlier).', (done) => {
     const completable = Completable.timer(100).ambWith(Completable.error(new Error('Hello')));
     completable.subscribe(
-      done,
-      e => (e instanceof Error ? done() : done(false)),
+      () => done(false),
+      () => done(),
     );
   });
 });
