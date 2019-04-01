@@ -628,7 +628,7 @@ export default class Completable {
    * this will emit an error rather than go to
    * Observer.onSuccess.
    *
-   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.takeUntil.c.png" class="diagram">
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.takeuntil.c.png" class="diagram">
    *
    * @param {Completable} other
    * the Completable whose emitted item will cause takeUntil
