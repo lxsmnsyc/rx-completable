@@ -239,7 +239,7 @@ export default class Completable {
    * @param {!number} amount
    * the amount of time the success signal should be
    * delayed for (in milliseconds).
-   * @param {?boolean} doDelayError
+   * @param {?boolean} doDelayOnError
    * if true, both success and error signals are delayed.
    * if false, only success signals are delayed.
    * @returns {Completable}
@@ -444,8 +444,8 @@ export default class Completable {
    * similar to a Promise construct.
    * @returns {Completable}
    */
-  static fromResolvable(subscriber) {
-    return fromResolvable(subscriber);
+  static fromResolvable(fulfillable) {
+    return fromResolvable(fulfillable);
   }
 
   /**
@@ -475,7 +475,7 @@ export default class Completable {
    * using compose() method and  creating a transformer function
    * with it is recommended.
    *
-   * @param {!function(observer: Observer)} consumer
+   * @param {!function(observer: Observer)} operator
    * the callback called when a child subscriber subscribes
    * @returns {Completable}
    */
@@ -589,8 +589,8 @@ export default class Completable {
    * value and should return true if a resubscription should happen.
    * @returns {Completable}
    */
-  retry(indicator) {
-    return retry(this, indicator);
+  retry(predicate) {
+    return retry(this, predicate);
   }
 
   /**
