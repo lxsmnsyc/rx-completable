@@ -61,4 +61,17 @@ describe('#onErrorResumeNext', () => {
       () => done(),
     );
   });
+  /**
+   *
+   */
+  it('should not resume if source does not throw error', (done) => {
+    let resumed;
+    const completable = Completable.complete().onErrorResumeNext(
+      Completable.complete().doOnComplete(() => { resumed = true; })
+    );
+    completable.subscribe(
+      () => (!resumed ? done() : done(false)),
+      () => done(),
+    );
+  });
 });
