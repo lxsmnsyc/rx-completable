@@ -6,7 +6,7 @@ import { cleanObserver } from '../utils';
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onSubscribe, onError } = cleanObserver(observer);
+  const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
 
@@ -34,6 +34,8 @@ function subscribeActual(observer) {
           const result = predicate();
 
           if (result) {
+            onComplete();
+          } else {
             sub();
           }
         } else {
