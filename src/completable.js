@@ -161,7 +161,7 @@ export default class Completable {
 
   /**
    * Calls the given transformer function with this instance an
-   *  returns the function's resulting Completable.
+   * returns the function's resulting Completable.
    *
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.compose.png" class="diagram">
    *
@@ -242,6 +242,7 @@ export default class Completable {
    * @param {?boolean} doDelayError
    * if true, both success and error signals are delayed.
    * if false, only success signals are delayed.
+   * @returns {Completable}
    */
   delay(amount, doDelayOnError) {
     return delay(this, amount, doDelayOnError);
@@ -316,6 +317,7 @@ export default class Completable {
    *
    * @param {!function} action
    * the callback to call when this emits an onComplete event
+   * @returns {Completable}
    */
   doOnComplete(action) {
     return doOnComplete(this, action);
