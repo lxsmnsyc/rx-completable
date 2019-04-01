@@ -6,7 +6,7 @@ import { cleanObserver } from '../utils';
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onSubscribe, onComplet, onError } = cleanObserver(observer);
+  const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
 
@@ -24,7 +24,7 @@ function subscribeActual(observer) {
     onSubscribe(ac) {
       signal.addEventListener('abort', () => ac.abort());
     },
-    onComplet() {
+    onComplete() {
       if (!signal.aborted) {
         onError(new Error('Completable.takeUntil: Source cancelled by other Completable.'));
         controller.abort();
@@ -42,9 +42,9 @@ function subscribeActual(observer) {
     onSubscribe(ac) {
       signal.addEventListener('abort', () => ac.abort());
     },
-    onComplet() {
+    onComplete() {
       if (!signal.aborted) {
-        onComplet();
+        onComplete();
         controller.abort();
       }
     },
