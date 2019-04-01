@@ -2000,7 +2000,7 @@ class Completable {
 
   /**
    * Calls the given transformer function with this instance an
-   *  returns the function's resulting Completable.
+   * returns the function's resulting Completable.
    *
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.compose.png" class="diagram">
    *
@@ -2078,9 +2078,10 @@ class Completable {
    * @param {!number} amount
    * the amount of time the success signal should be
    * delayed for (in milliseconds).
-   * @param {?boolean} doDelayError
+   * @param {?boolean} doDelayOnError
    * if true, both success and error signals are delayed.
    * if false, only success signals are delayed.
+   * @returns {Completable}
    */
   delay(amount, doDelayOnError) {
     return delay(this, amount, doDelayOnError);
@@ -2155,6 +2156,7 @@ class Completable {
    *
    * @param {!function} action
    * the callback to call when this emits an onComplete event
+   * @returns {Completable}
    */
   doOnComplete(action) {
     return doOnComplete(this, action);
@@ -2281,8 +2283,8 @@ class Completable {
    * similar to a Promise construct.
    * @returns {Completable}
    */
-  static fromResolvable(subscriber) {
-    return fromResolvable(subscriber);
+  static fromResolvable(fulfillable) {
+    return fromResolvable(fulfillable);
   }
 
   /**
@@ -2312,7 +2314,7 @@ class Completable {
    * using compose() method and  creating a transformer function
    * with it is recommended.
    *
-   * @param {!function(observer: Observer)} consumer
+   * @param {!function(observer: Observer)} operator
    * the callback called when a child subscriber subscribes
    * @returns {Completable}
    */
@@ -2426,8 +2428,8 @@ class Completable {
    * value and should return true if a resubscription should happen.
    * @returns {Completable}
    */
-  retry(indicator) {
-    return retry(this, indicator);
+  retry(predicate) {
+    return retry(this, predicate);
   }
 
   /**
@@ -2465,7 +2467,7 @@ class Completable {
    * this will emit an error rather than go to
    * Observer.onSuccess.
    *
-   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.takeUntil.c.png" class="diagram">
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.takeuntil.c.png" class="diagram">
    *
    * @param {Completable} other
    * the Completable whose emitted item will cause takeUntil
