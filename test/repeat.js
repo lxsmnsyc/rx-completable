@@ -33,13 +33,24 @@ describe('#repeat', () => {
   /**
    *
    */
-  it('should repeat with the given amount', (done) => {
+  it('should repeat with the given amount and completes', (done) => {
     let count = 0;
     const source = Completable.complete().doOnComplete(() => { count += 1; });
     const completable = source.repeat(3);
     completable.subscribe(
       () => (count === 3 ? done() : done(false)),
       () => done(false),
+    );
+  });
+  /**
+   *
+   */
+  it('should emit error', (done) => {
+    const source = Completable.error(new Error('Hello'));
+    const completable = source.repeat(3);
+    completable.subscribe(
+      () => done(false),
+      () => done(),
     );
   });
 });
