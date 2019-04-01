@@ -30,7 +30,7 @@ describe('#concat', () => {
   /**
    *
    */
-  it('should signal error from the first Completable', (done) => {
+  it('should signal error from the first', (done) => {
     const completable = Completable.concat([Completable.error(new Error('Hello')), Completable.timer(100)]);
     completable.subscribe(
       () => done(false),
