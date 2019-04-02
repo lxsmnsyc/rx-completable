@@ -105,8 +105,8 @@ var Completable = (function (AbortController) {
     try {
       err = this.supplier();
 
-      if (typeof err === 'undefined') {
-        throw new Error('Completable.error: Error supplier returned an undefined value.');
+      if (err == null) {
+        throw new Error('Completable.error: Error supplier returned a null value.');
       }
     } catch (e) {
       err = e;
@@ -366,7 +366,7 @@ var Completable = (function (AbortController) {
       onSubscribe(controller);
 
       const { error } = this;
-      if (typeof error !== 'undefined') {
+      if (error != null) {
         onError(error);
       } else {
         onComplete();
@@ -574,7 +574,7 @@ var Completable = (function (AbortController) {
       err = e;
     }
 
-    if (typeof err !== 'undefined') {
+    if (err != null) {
       immediateError(observer, err);
     } else {
       result.subscribeWith({
@@ -1409,7 +1409,7 @@ var Completable = (function (AbortController) {
         if (typeof resumeIfError === 'function') {
           try {
             result = resumeIfError(x);
-            if (typeof result === 'undefined') {
+            if (!(result instanceof Completable)) {
               throw new Error('Completable.onErrorResumeNext: returned an non-Completable.');
             }
           } catch (e) {
@@ -1506,7 +1506,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var repeat = (source, times) => {
-    if (typeof times !== 'undefined') {
+    if (times != null) {
       if (typeof times !== 'number') {
         return source;
       }
