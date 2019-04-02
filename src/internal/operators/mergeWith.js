@@ -43,7 +43,11 @@ function subscribeActual(observer) {
 
   other.subscribeWith({
     onSubscribe(ac) {
-      signal.addEventListener('abort', () => ac.abort());
+      if (signal.aborted) {
+        ac.abort();
+      } else {
+        signal.addEventListener('abort', () => ac.abort());
+      }
     },
     onComplete() {
       flagB = true;
