@@ -56,7 +56,7 @@ function subscribeActual(observer) {
     onSubscribe(controller);
 
     const { error } = this;
-    if (typeof error !== 'undefined') {
+    if (error != null) {
       onError(error);
     } else {
       onComplete();
