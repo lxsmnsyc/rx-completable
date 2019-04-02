@@ -31,7 +31,7 @@ function subscribeActual(observer) {
       if (typeof resumeIfError === 'function') {
         try {
           result = resumeIfError(x);
-          if (typeof result === 'undefined') {
+          if (!(result instanceof Completable)) {
             throw new Error('Completable.onErrorResumeNext: returned an non-Completable.');
           }
         } catch (e) {
