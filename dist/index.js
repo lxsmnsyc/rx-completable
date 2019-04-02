@@ -230,7 +230,11 @@ var Completable = (function (AbortController) {
     });
     other.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        if (signal.aborted) {
+          ac.abort();
+        } else {
+          signal.addEventListener('abort', () => ac.abort());
+        }
       },
       onComplete: sharedComplete,
       onError: sharedError,
@@ -1266,7 +1270,11 @@ var Completable = (function (AbortController) {
 
     other.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        if (signal.aborted) {
+          ac.abort();
+        } else {
+          signal.addEventListener('abort', () => ac.abort());
+        }
       },
       onComplete() {
         flagB = true;
