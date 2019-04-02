@@ -106,8 +106,8 @@ function subscribeActual(observer) {
   try {
     err = this.supplier();
 
-    if (typeof err === 'undefined') {
-      throw new Error('Completable.error: Error supplier returned an undefined value.');
+    if (err == null) {
+      throw new Error('Completable.error: Error supplier returned a null value.');
     }
   } catch (e) {
     err = e;
@@ -367,7 +367,7 @@ function subscribeActual$4(observer) {
     onSubscribe(controller);
 
     const { error } = this;
-    if (typeof error !== 'undefined') {
+    if (error != null) {
       onError(error);
     } else {
       onComplete();
@@ -575,7 +575,7 @@ function subscribeActual$8(observer) {
     err = e;
   }
 
-  if (typeof err !== 'undefined') {
+  if (err != null) {
     immediateError(observer, err);
   } else {
     result.subscribeWith({
@@ -1410,7 +1410,7 @@ function subscribeActual$r(observer) {
       if (typeof resumeIfError === 'function') {
         try {
           result = resumeIfError(x);
-          if (typeof result === 'undefined') {
+          if (!(result instanceof Completable)) {
             throw new Error('Completable.onErrorResumeNext: returned an non-Completable.');
           }
         } catch (e) {
@@ -1507,7 +1507,7 @@ function subscribeActual$s(observer) {
  * @ignore
  */
 var repeat = (source, times) => {
-  if (typeof times !== 'undefined') {
+  if (times != null) {
     if (typeof times !== 'number') {
       return source;
     }
