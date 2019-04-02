@@ -25,34 +25,30 @@ function subscribeActual(observer) {
       signal.addEventListener('abort', () => ac.abort());
     },
     onComplete() {
-      if (!signal.aborted) {
-        onError(new Error('Completable.takeUntil: Source cancelled by other Completable.'));
-        controller.abort();
-      }
+      onError(new Error('Completable.takeUntil: Source cancelled by other Completable.'));
+      controller.abort();
     },
     onError(x) {
-      if (!signal.aborted) {
-        onError(new Error(['Completable.takeUntil: Source cancelled by other Completable.', x]));
-        controller.abort();
-      }
+      onError(new Error(['Completable.takeUntil: Source cancelled by other Completable.', x]));
+      controller.abort();
     },
   });
 
   source.subscribeWith({
     onSubscribe(ac) {
-      signal.addEventListener('abort', () => ac.abort());
+      if (signal.aborted) {
+        ac.abort();
+      } else {
+        signal.addEventListener('abort', () => ac.abort());
+      }
     },
     onComplete() {
-      if (!signal.aborted) {
-        onComplete();
-        controller.abort();
-      }
+      onComplete();
+      controller.abort();
     },
     onError(x) {
-      if (!signal.aborted) {
-        onError(x);
-        controller.abort();
-      }
+      onError(x);
+      controller.abort();
     },
   });
 }
