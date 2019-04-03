@@ -1,11 +1,12 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
+import { cleanObserver } from '../utils';
 
 /**
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onComplete, onError, onSubscribe } = observer;
+  const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const { amount, doDelayError } = this;
 
