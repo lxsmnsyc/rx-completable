@@ -53,9 +53,8 @@ export default (source, other) => {
   if (!(other instanceof Completable)) {
     return source;
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.other = other;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
