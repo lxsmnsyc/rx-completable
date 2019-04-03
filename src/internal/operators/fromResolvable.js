@@ -30,8 +30,7 @@ export default (subscriber) => {
   if (typeof subscriber !== 'function') {
     return error(new Error('Completable.fromResolvable: expects a function.'));
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.subscriber = subscriber;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
