@@ -125,9 +125,8 @@ var Completable = (function (AbortController) {
     if (typeof value !== 'function') {
       report = toCallable(report);
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual);
     completable.supplier = report;
-    completable.subscribeActual = subscribeActual.bind(completable);
     return completable;
   };
 
@@ -184,9 +183,8 @@ var Completable = (function (AbortController) {
     if (!isIterable(sources)) {
       return error(new Error('Completable.amb: sources is not Iterable.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$1);
     completable.sources = sources;
-    completable.subscribeActual = subscribeActual$1.bind(completable);
     return completable;
   };
 
@@ -247,10 +245,9 @@ var Completable = (function (AbortController) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$2);
     completable.source = source;
     completable.other = other;
-    completable.subscribeActual = subscribeActual$2.bind(completable);
     return completable;
   };
 
@@ -305,10 +302,9 @@ var Completable = (function (AbortController) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$3);
     completable.source = source;
     completable.other = other;
-    completable.subscribeActual = subscribeActual$3.bind(completable);
     return completable;
   };
 
@@ -379,12 +375,11 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var cache = (source) => {
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$4);
     completable.source = source;
     completable.cached = false;
     completable.subscribed = false;
     completable.observers = [];
-    completable.subscribeActual = subscribeActual$4.bind(completable);
     return completable;
   };
 
@@ -401,7 +396,7 @@ var Completable = (function (AbortController) {
    */
   var complete = () => {
     if (typeof INSTANCE === 'undefined') {
-      INSTANCE = new Completable();
+      INSTANCE = new Completable(subscribeActual$5);
       INSTANCE.subscribeActual = subscribeActual$5.bind(INSTANCE);
     }
     return INSTANCE;
@@ -515,9 +510,8 @@ var Completable = (function (AbortController) {
     if (!isIterable(sources)) {
       return error(new Error('Completable.concat: sources is not Iterable.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$6);
     completable.sources = sources;
-    completable.subscribeActual = subscribeActual$6.bind(completable);
     return completable;
   };
 
@@ -550,7 +544,7 @@ var Completable = (function (AbortController) {
     if (typeof subscriber !== 'function') {
       return error(new Error('Completable.create: There are no subscribers.'));
     }
-    const single = new Completable();
+    const single = new Completable(subscribeActual$7);
     single.subscriber = subscriber;
     single.subscribeActual = subscribeActual$7.bind(single);
     return single;
@@ -588,9 +582,8 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var defer = (supplier) => {
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$8);
     completable.supplier = supplier;
-    completable.subscribeActual = subscribeActual$8.bind(completable);
     return completable;
   };
 
@@ -647,11 +640,10 @@ var Completable = (function (AbortController) {
     if (typeof amount !== 'number') {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$9);
     completable.source = source;
     completable.amount = amount;
     completable.doDelayError = doDelayError;
-    completable.subscribeActual = subscribeActual$9.bind(completable);
     return completable;
   };
 
@@ -704,10 +696,9 @@ var Completable = (function (AbortController) {
     if (typeof amount !== 'number') {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$a);
     completable.source = source;
     completable.amount = amount;
-    completable.subscribeActual = subscribeActual$a.bind(completable);
     return completable;
   };
 
@@ -740,10 +731,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$b);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$b.bind(completable);
     return completable;
   };
 
@@ -791,10 +781,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$c);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$c.bind(completable);
     return completable;
   };
 
@@ -824,10 +813,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$d);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$d.bind(completable);
     return completable;
   };
 
@@ -857,10 +845,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$e);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$e.bind(completable);
     return completable;
   };
 
@@ -890,10 +877,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$f);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$f.bind(completable);
     return completable;
   };
 
@@ -926,10 +912,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$g);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$g.bind(completable);
     return completable;
   };
 
@@ -958,10 +943,9 @@ var Completable = (function (AbortController) {
     if (typeof callable !== 'function') {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$h);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$h.bind(completable);
     return completable;
   };
 
@@ -994,10 +978,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$i);
     completable.source = source;
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$i.bind(completable);
     return completable;
   };
 
@@ -1030,9 +1013,8 @@ var Completable = (function (AbortController) {
     if (!isPromise(promise)) {
       return error(new Error('Completable.fromPromise: expects a Promise-like value.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$j);
     completable.promise = promise;
-    completable.subscribeActual = subscribeActual$j.bind(completable);
     return completable;
   };
 
@@ -1078,9 +1060,8 @@ var Completable = (function (AbortController) {
     if (typeof callable !== 'function') {
       return error(new Error('Completable.fromCallable: callable received is not a function.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$k);
     completable.callable = callable;
-    completable.subscribeActual = subscribeActual$k.bind(completable);
     return completable;
   };
 
@@ -1111,9 +1092,8 @@ var Completable = (function (AbortController) {
     if (typeof subscriber !== 'function') {
       return error(new Error('Completable.fromResolvable: expects a function.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$l);
     completable.subscriber = subscriber;
-    completable.subscribeActual = subscribeActual$l.bind(completable);
     return completable;
   };
 
@@ -1145,10 +1125,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$m);
     completable.source = source;
     completable.operator = operator;
-    completable.subscribeActual = subscribeActual$m.bind(completable);
     return completable;
   };
 
@@ -1222,9 +1201,8 @@ var Completable = (function (AbortController) {
     if (!isIterable(sources)) {
       return error(new Error('Completable.concat: sources is not Iterable.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$n);
     completable.sources = sources;
-    completable.subscribeActual = subscribeActual$n.bind(completable);
     return completable;
   };
 
@@ -1297,10 +1275,9 @@ var Completable = (function (AbortController) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$o);
     completable.source = source;
     completable.other = other;
-    completable.subscribeActual = subscribeActual$o.bind(completable);
     return completable;
   };
 
@@ -1334,7 +1311,7 @@ var Completable = (function (AbortController) {
    */
   var never = () => {
     if (typeof INSTANCE$1 === 'undefined') {
-      INSTANCE$1 = new Completable();
+      INSTANCE$1 = new Completable(subscribeActual$p);
       INSTANCE$1.subscribeActual = subscribeActual$p.bind(INSTANCE$1);
     }
     return INSTANCE$1;
@@ -1372,10 +1349,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$q);
     completable.source = source;
     completable.item = item;
-    completable.subscribeActual = subscribeActual$q.bind(completable);
     return completable;
   };
 
@@ -1443,10 +1419,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$r);
     completable.source = source;
     completable.resumeIfError = resumeIfError;
-    completable.subscribeActual = subscribeActual$r.bind(completable);
     return completable;
   };
 
@@ -1513,10 +1488,9 @@ var Completable = (function (AbortController) {
         return source;
       }
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$s);
     completable.source = source;
     completable.times = times;
-    completable.subscribeActual = subscribeActual$s.bind(completable);
     return completable;
   };
 
@@ -1574,10 +1548,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var repeatUntil = (source, predicate) => {
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$t);
     completable.source = source;
     completable.predicate = predicate;
-    completable.subscribeActual = subscribeActual$t.bind(completable);
     return completable;
   };
 
@@ -1639,10 +1612,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var retry = (source, bipredicate) => {
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$u);
     completable.source = source;
     completable.bipredicate = bipredicate;
-    completable.subscribeActual = subscribeActual$u.bind(completable);
     return completable;
   };
 
@@ -1697,10 +1669,9 @@ var Completable = (function (AbortController) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$v);
     completable.source = source;
     completable.other = other;
-    completable.subscribeActual = subscribeActual$v.bind(completable);
     return completable;
   };
 
@@ -1763,10 +1734,9 @@ var Completable = (function (AbortController) {
       return source;
     }
 
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$w);
     completable.source = source;
     completable.other = other;
-    completable.subscribeActual = subscribeActual$w.bind(completable);
     return completable;
   };
 
@@ -1821,10 +1791,9 @@ var Completable = (function (AbortController) {
     if (typeof amount !== 'number') {
       return source;
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$x);
     completable.source = source;
     completable.amount = amount;
-    completable.subscribeActual = subscribeActual$x.bind(completable);
     return completable;
   };
 
@@ -1858,9 +1827,8 @@ var Completable = (function (AbortController) {
     if (typeof amount !== 'number') {
       return error(new Error('Completable.timer: "amount" is not a number.'));
     }
-    const completable = new Completable();
+    const completable = new Completable(subscribeActual$y);
     completable.amount = amount;
-    completable.subscribeActual = subscribeActual$y.bind(completable);
     return completable;
   };
 
@@ -1926,6 +1894,13 @@ var Completable = (function (AbortController) {
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.png" class="diagram">
    */
   class Completable {
+    /**
+     * @ignore
+     */
+    constructor(subscribeActual) {
+      this.subscribeActual = subscribeActual;
+    }
+
     /**
      * Returns a Completable which terminates as soon as
      * one of the source Completables terminates
@@ -2528,7 +2503,7 @@ var Completable = (function (AbortController) {
      */
     subscribeWith(observer) {
       if (isObserver(observer)) {
-        this.subscribeActual(observer);
+        this.subscribeActual.call(this, observer);
       }
     }
 
@@ -2552,7 +2527,7 @@ var Completable = (function (AbortController) {
     subscribe(onComplete, onError) {
       const controller = new AbortController();
       let once = false;
-      this.subscribeActual({
+      this.subscribeWith({
         onSubscribe(ac) {
           ac.signal.addEventListener('abort', () => {
             if (!once) {
