@@ -69,3 +69,9 @@ To build the coverages, run the test suite, the docs, and the distributable modu
 ```bash
 npm run build
 ```
+
+## Changelogs
+* 0.3.0
+  * Fixed operators not guarding observers.
+* 0.1.0
+  * Release
