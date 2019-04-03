@@ -56,9 +56,8 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, predicate) => {
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.predicate = predicate;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
