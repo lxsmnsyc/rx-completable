@@ -86,6 +86,13 @@ import {
  */
 export default class Completable {
   /**
+   * @ignore
+   */
+  constructor(subscribeActual) {
+    this.subscribeActual = subscribeActual;
+  }
+
+  /**
    * Returns a Completable which terminates as soon as
    * one of the source Completables terminates
    * (normally or with an error) and disposes all
@@ -687,7 +694,7 @@ export default class Completable {
    */
   subscribeWith(observer) {
     if (isObserver(observer)) {
-      this.subscribeActual(observer);
+      this.subscribeActual.call(this, observer);
     }
   }
 
@@ -711,7 +718,7 @@ export default class Completable {
   subscribe(onComplete, onError) {
     const controller = new AbortController();
     let once = false;
-    this.subscribeActual({
+    this.subscribeWith({
       onSubscribe(ac) {
         ac.signal.addEventListener('abort', () => {
           if (!once) {
