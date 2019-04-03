@@ -29,9 +29,8 @@ export default (source, operator) => {
     return source;
   }
 
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.operator = operator;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
