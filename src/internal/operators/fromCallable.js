@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import {
-  onErrorHandler, onCompleteHandler, isPromise,
+  onErrorHandler, onCompleteHandler, isPromise, cleanObserver,
 } from '../utils';
 import Completable from '../../completable';
 import error from './error';
@@ -10,7 +10,7 @@ import fromPromise from './fromPromise';
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onComplete, onError, onSubscribe } = observer;
+  const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const controller = new AbortController();
 
