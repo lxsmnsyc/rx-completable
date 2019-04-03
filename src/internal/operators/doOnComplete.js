@@ -27,9 +27,8 @@ export default (source, callable) => {
     return source;
   }
 
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.callable = callable;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
