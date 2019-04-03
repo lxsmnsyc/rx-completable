@@ -33,8 +33,7 @@ export default (promise) => {
   if (!isPromise(promise)) {
     return error(new Error('Completable.fromPromise: expects a Promise-like value.'));
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.promise = promise;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
