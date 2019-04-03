@@ -34,7 +34,7 @@ export default (subscriber) => {
   if (typeof subscriber !== 'function') {
     return error(new Error('Completable.create: There are no subscribers.'));
   }
-  const single = new Completable();
+  const single = new Completable(subscribeActual);
   single.subscriber = subscriber;
   single.subscribeActual = subscribeActual.bind(single);
   return single;
