@@ -33,8 +33,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (supplier) => {
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.supplier = supplier;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
