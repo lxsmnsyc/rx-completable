@@ -33,8 +33,7 @@ export default (amount) => {
   if (typeof amount !== 'number') {
     return error(new Error('Completable.timer: "amount" is not a number.'));
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.amount = amount;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
