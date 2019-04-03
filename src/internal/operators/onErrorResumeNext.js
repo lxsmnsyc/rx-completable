@@ -66,9 +66,8 @@ export default (source, resumeIfError) => {
     return source;
   }
 
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.resumeIfError = resumeIfError;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
