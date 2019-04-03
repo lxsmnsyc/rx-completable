@@ -60,9 +60,8 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, bipredicate) => {
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.bipredicate = bipredicate;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
