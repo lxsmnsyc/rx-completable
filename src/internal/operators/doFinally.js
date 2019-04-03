@@ -1,10 +1,11 @@
 import Completable from '../../completable';
+import { cleanObserver } from '../utils';
 
 /**
  * @ignore
  */
 function subscribeActual(observer) {
-  const { onSubscribe, onComplete, onError } = observer;
+  const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const { source, callable } = this;
 
