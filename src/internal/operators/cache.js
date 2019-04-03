@@ -69,11 +69,10 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source) => {
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.cached = false;
   completable.subscribed = false;
   completable.observers = [];
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
