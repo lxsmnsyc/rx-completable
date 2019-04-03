@@ -30,8 +30,7 @@ export default (value) => {
   if (typeof value !== 'function') {
     report = toCallable(report);
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.supplier = report;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
