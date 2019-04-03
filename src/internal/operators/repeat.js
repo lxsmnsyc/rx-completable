@@ -65,9 +65,8 @@ export default (source, times) => {
       return source;
     }
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.times = times;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
