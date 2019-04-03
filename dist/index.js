@@ -598,7 +598,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$9(observer) {
-    const { onComplete, onError, onSubscribe } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, doDelayError } = this;
 
@@ -659,7 +659,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$a(observer) {
-    const { onComplete, onError, onSubscribe } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount } = this;
 
@@ -715,7 +715,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$b(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -751,7 +751,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$c(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -802,7 +802,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$d(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -835,7 +835,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$e(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -868,7 +868,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$f(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -901,7 +901,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$g(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -937,7 +937,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$h(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -969,7 +969,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$i(observer) {
-    const { onSubscribe, onComplete, onError } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
@@ -1005,8 +1005,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$j(observer) {
-    const { onComplete, onError, onSubscribe } = observer;
-
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
     const controller = new AbortController();
 
     onSubscribe(controller);
@@ -1041,7 +1040,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   function subscribeActual$k(observer) {
-    const { onComplete, onError, onSubscribe } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const controller = new AbortController();
 
@@ -1086,7 +1085,7 @@ var Completable = (function (AbortController) {
   };
 
   function subscribeActual$l(observer) {
-    const { onComplete, onError, onSubscribe } = observer;
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const controller = new AbortController();
 
