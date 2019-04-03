@@ -48,8 +48,7 @@ export default (callable) => {
   if (typeof callable !== 'function') {
     return error(new Error('Completable.fromCallable: callable received is not a function.'));
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.callable = callable;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
