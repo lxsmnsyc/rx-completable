@@ -55,10 +55,9 @@ export default (source, amount, doDelayError) => {
   if (typeof amount !== 'number') {
     return source;
   }
-  const completable = new Completable();
+  const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.amount = amount;
   completable.doDelayError = doDelayError;
-  completable.subscribeActual = subscribeActual.bind(completable);
   return completable;
 };
