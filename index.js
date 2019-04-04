@@ -7,11 +7,28 @@ var AbortController = _interopDefault(require('abort-controller'));
 /**
  * @ignore
  */
-const isIterable = obj => typeof obj === 'object' && typeof obj[Symbol.iterator] === 'function';
+// eslint-disable-next-line valid-typeof
+const isType = (x, y) => typeof x === y;
 /**
  * @ignore
  */
-const isObserver = obj => typeof obj === 'object' && typeof obj.onSubscribe === 'function';
+const isFunction = x => isType(x, 'function');
+/**
+ * @ignore
+ */
+const isNumber = x => isType(x, 'number');
+/**
+ * @ignore
+ */
+const isObject = x => isType(x, 'object');
+/**
+ * @ignore
+ */
+const isIterable = obj => isObject(obj) && isFunction(obj[Symbol.iterator]);
+/**
+ * @ignore
+ */
+const isObserver = obj => isObject(obj) && isFunction(obj.onSubscribe);
 /**
  * @ignore
  */
@@ -19,7 +36,11 @@ const toCallable = x => () => x;
 /**
  * @ignore
  */
-const isPromise = obj => (obj instanceof Promise) || (!!obj && (typeof obj === 'object' || typeof obj === 'function') && typeof obj.then === 'function');
+const isPromise = (obj) => {
+  if (obj == null) return false;
+  if (obj instanceof Promise) return true;
+  return (isObject(obj) || isFunction(obj)) && isFunction(obj.then);
+};
 /**
  * @ignore
  */
@@ -66,8 +87,8 @@ const throwError = (x) => { throw x; };
  */
 const cleanObserver = x => ({
   onSubscribe: x.onSubscribe,
-  onComplete: typeof x.onComplete === 'function' ? x.onComplete : identity,
-  onError: typeof x.onError === 'function' ? x.onError : throwError,
+  onComplete: isFunction(x.onComplete) ? x.onComplete : identity,
+  onError: isFunction(x.onError) ? x.onError : throwError,
 });
 /**
  * @ignore
@@ -119,7 +140,7 @@ function subscribeActual(observer) {
  */
 var error = (value) => {
   let report = value;
-  if (!(value instanceof Error)) {
+  if (!(value instanceof Error || typeof value === 'function')) {
     report = new Error('Completable.error received a non-Error value.');
   }
 
@@ -407,7 +428,7 @@ var complete = () => {
  * @ignore
  */
 var compose = (source, transformer) => {
-  if (typeof transformer !== 'function') {
+  if (!isFunction(transformer)) {
     return source;
   }
 
@@ -542,7 +563,7 @@ function subscribeActual$7(observer) {
  * @ignore
  */
 var create = (subscriber) => {
-  if (typeof subscriber !== 'function') {
+  if (!isFunction(subscriber)) {
     return error(new Error('Completable.create: There are no subscribers.'));
   }
   const single = new Completable(subscribeActual$7);
@@ -638,7 +659,7 @@ function subscribeActual$9(observer) {
  * @ignore
  */
 var delay = (source, amount, doDelayError) => {
-  if (typeof amount !== 'number') {
+  if (!isNumber(amount)) {
     return source;
   }
   const completable = new Completable(subscribeActual$9);
@@ -694,7 +715,7 @@ function subscribeActual$a(observer) {
  * @ignore
  */
 var delaySubscription = (source, amount) => {
-  if (typeof amount !== 'number') {
+  if (!isNumber(amount)) {
     return source;
   }
   const completable = new Completable(subscribeActual$a);
@@ -728,10 +749,9 @@ function subscribeActual$b(observer) {
  * @ignore
  */
 var doAfterTerminate = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$b);
   completable.source = source;
   completable.callable = callable;
@@ -778,10 +798,9 @@ function subscribeActual$c(observer) {
  * @ignore
  */
 var doFinally = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$c);
   completable.source = source;
   completable.callable = callable;
@@ -810,10 +829,9 @@ function subscribeActual$d(observer) {
  * @ignore
  */
 var doOnAbort = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$d);
   completable.source = source;
   completable.callable = callable;
@@ -842,10 +860,9 @@ function subscribeActual$e(observer) {
  * @ignore
  */
 var doOnComplete = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$e);
   completable.source = source;
   completable.callable = callable;
@@ -874,7 +891,7 @@ function subscribeActual$f(observer) {
  * @ignore
  */
 var doOnError = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
 
@@ -909,10 +926,9 @@ function subscribeActual$g(observer) {
  * @ignore
  */
 var doOnEvent = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$g);
   completable.source = source;
   completable.callable = callable;
@@ -941,7 +957,7 @@ function subscribeActual$h(observer) {
  * @ignore
  */
 var doOnSubscribe = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
   const completable = new Completable(subscribeActual$h);
@@ -975,10 +991,9 @@ function subscribeActual$i(observer) {
  * @ignore
  */
 var doOnTerminate = (source, callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$i);
   completable.source = source;
   completable.callable = callable;
@@ -1065,7 +1080,7 @@ function subscribeActual$k(observer) {
  * @ignore
  */
 var fromCallable = (callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return error(new Error('Completable.fromCallable: callable received is not a function.'));
   }
   const completable = new Completable(subscribeActual$k);
@@ -1097,7 +1112,7 @@ function subscribeActual$l(observer) {
  * @ignore
  */
 var fromResolvable = (subscriber) => {
-  if (typeof subscriber !== 'function') {
+  if (!isFunction(subscriber)) {
     return error(new Error('Completable.fromResolvable: expects a function.'));
   }
   const completable = new Completable(subscribeActual$l);
@@ -1129,10 +1144,9 @@ function subscribeActual$m(observer) {
  * @ignore
  */
 var lift = (source, operator) => {
-  if (typeof operator !== 'function') {
+  if (!isFunction(operator)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$m);
   completable.source = source;
   completable.operator = operator;
@@ -1353,10 +1367,9 @@ function subscribeActual$q(observer) {
  * @ignore
  */
 var onErrorComplete = (source, item) => {
-  if (typeof item !== 'function') {
+  if (!isFunction(item)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual$q);
   completable.source = source;
   completable.item = item;
@@ -1389,7 +1402,7 @@ function subscribeActual$r(observer) {
     onError(x) {
       let result;
 
-      if (typeof resumeIfError === 'function') {
+      if (isFunction(resumeIfError)) {
         try {
           result = resumeIfError(x);
           if (!(result instanceof Completable)) {
@@ -1423,7 +1436,7 @@ function subscribeActual$r(observer) {
  * @ignore
  */
 var onErrorResumeNext = (source, resumeIfError) => {
-  if (!(typeof resumeIfError === 'function' || resumeIfError instanceof Completable)) {
+  if (!(isFunction(resumeIfError) || resumeIfError instanceof Completable)) {
     return source;
   }
 
@@ -1464,7 +1477,7 @@ function subscribeActual$s(observer) {
         signal.addEventListener('abort', () => ac.abort());
       },
       onComplete() {
-        if (typeof times === 'number') {
+        if (isNumber(times)) {
           if (retries <= times) {
             sub();
           } else {
@@ -1489,7 +1502,7 @@ function subscribeActual$s(observer) {
  */
 var repeat = (source, times) => {
   if (times != null) {
-    if (typeof times !== 'number') {
+    if (!isNumber(times)) {
       return source;
     }
     if (times <= 0) {
@@ -1530,7 +1543,7 @@ function subscribeActual$t(observer) {
         signal.addEventListener('abort', () => ac.abort());
       },
       onComplete() {
-        if (typeof predicate === 'function') {
+        if (isFunction(predicate)) {
           const result = predicate();
 
           if (result) {
@@ -1597,7 +1610,7 @@ function subscribeActual$u(observer) {
         controller.abort();
       },
       onError(x) {
-        if (typeof bipredicate === 'function') {
+        if (isFunction(bipredicate)) {
           const result = bipredicate(retries, x);
 
           if (result) {
@@ -1796,7 +1809,7 @@ function subscribeActual$x(observer) {
  * @ignore
  */
 var timeout = (source, amount) => {
-  if (typeof amount !== 'number') {
+  if (!isNumber(amount)) {
     return source;
   }
   const completable = new Completable(subscribeActual$x);
@@ -1832,7 +1845,7 @@ function subscribeActual$y(observer) {
  * @ignore
  */
 var timer = (amount) => {
-  if (typeof amount !== 'number') {
+  if (!isNumber(amount)) {
     return error(new Error('Completable.timer: "amount" is not a number.'));
   }
   const completable = new Completable(subscribeActual$y);
