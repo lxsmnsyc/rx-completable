@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isFunction } from '../utils';
 
 /**
  * @ignore
@@ -30,7 +30,7 @@ function subscribeActual(observer) {
         signal.addEventListener('abort', () => ac.abort());
       },
       onComplete() {
-        if (typeof predicate === 'function') {
+        if (isFunction(predicate)) {
           const result = predicate();
 
           if (result) {
