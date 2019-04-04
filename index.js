@@ -998,9 +998,13 @@ function subscribeActual$j(observer) {
     return;
   }
 
+  this.controller = controller;
+  this.onComplete = onComplete;
+  this.onError = onError;
+
   this.promise.then(
-    () => onComplete(),
-    onError,
+    onCompleteHandler.bind(this),
+    onErrorHandler.bind(this),
   );
 }
 /**
@@ -1019,8 +1023,7 @@ var fromPromise = (promise) => {
  * @ignore
  */
 function subscribeActual$k(observer) {
-  const obs = cleanObserver(observer);
-  const { onComplete, onError, onSubscribe } = obs;
+  const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const controller = new AbortController();
 
@@ -1030,18 +1033,32 @@ function subscribeActual$k(observer) {
     return;
   }
 
+  this.controller = controller;
+  this.onComplete = onComplete;
+  this.onError = onError;
+
+  const resolve = onCompleteHandler.bind(this);
+  const reject = onErrorHandler.bind(this);
+
+
   let result;
   try {
     result = this.callable();
   } catch (e) {
-    onError(e);
+    reject(e);
     return;
   }
 
   if (isPromise(result)) {
-    fromPromise(result).subscribeWith(obs);
+    fromPromise(result).subscribeWith({
+      onSubscribe(ac) {
+        controller.signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete: resolve,
+      onError: reject,
+    });
   } else {
-    onComplete();
+    resolve();
   }
 }
 /**
