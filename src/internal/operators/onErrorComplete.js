@@ -1,5 +1,5 @@
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isFunction } from '../utils';
 
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
@@ -29,10 +29,9 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, item) => {
-  if (typeof item !== 'function') {
+  if (!isFunction(item)) {
     return source;
   }
-
   const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.item = item;
