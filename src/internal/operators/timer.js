@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isNumber } from '../utils';
 import error from './error';
 
 /**
@@ -30,7 +30,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (amount) => {
-  if (typeof amount !== 'number') {
+  if (!isNumber(amount)) {
     return error(new Error('Completable.timer: "amount" is not a number.'));
   }
   const completable = new Completable(subscribeActual);
