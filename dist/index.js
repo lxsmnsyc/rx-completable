@@ -6,11 +6,28 @@ var Completable = (function (AbortController) {
   /**
    * @ignore
    */
-  const isIterable = obj => typeof obj === 'object' && typeof obj[Symbol.iterator] === 'function';
+  // eslint-disable-next-line valid-typeof
+  const isType = (x, y) => typeof x === y;
   /**
    * @ignore
    */
-  const isObserver = obj => typeof obj === 'object' && typeof obj.onSubscribe === 'function';
+  const isFunction = x => isType(x, 'function');
+  /**
+   * @ignore
+   */
+  const isNumber = x => isType(x, 'number');
+  /**
+   * @ignore
+   */
+  const isObject = x => isType(x, 'object');
+  /**
+   * @ignore
+   */
+  const isIterable = obj => isObject(obj) && isFunction(obj[Symbol.iterator]);
+  /**
+   * @ignore
+   */
+  const isObserver = obj => isObject(obj) && isFunction(obj.onSubscribe);
   /**
    * @ignore
    */
@@ -18,7 +35,11 @@ var Completable = (function (AbortController) {
   /**
    * @ignore
    */
-  const isPromise = obj => (obj instanceof Promise) || (!!obj && (typeof obj === 'object' || typeof obj === 'function') && typeof obj.then === 'function');
+  const isPromise = (obj) => {
+    if (obj == null) return false;
+    if (obj instanceof Promise) return true;
+    return (isObject(obj) || isFunction(obj)) && isFunction(obj.then);
+  };
   /**
    * @ignore
    */
@@ -65,8 +86,8 @@ var Completable = (function (AbortController) {
    */
   const cleanObserver = x => ({
     onSubscribe: x.onSubscribe,
-    onComplete: typeof x.onComplete === 'function' ? x.onComplete : identity,
-    onError: typeof x.onError === 'function' ? x.onError : throwError,
+    onComplete: isFunction(x.onComplete) ? x.onComplete : identity,
+    onError: isFunction(x.onError) ? x.onError : throwError,
   });
   /**
    * @ignore
@@ -118,7 +139,7 @@ var Completable = (function (AbortController) {
    */
   var error = (value) => {
     let report = value;
-    if (!(value instanceof Error)) {
+    if (!(value instanceof Error || typeof value === 'function')) {
       report = new Error('Completable.error received a non-Error value.');
     }
 
@@ -406,7 +427,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var compose = (source, transformer) => {
-    if (typeof transformer !== 'function') {
+    if (!isFunction(transformer)) {
       return source;
     }
 
@@ -541,7 +562,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var create = (subscriber) => {
-    if (typeof subscriber !== 'function') {
+    if (!isFunction(subscriber)) {
       return error(new Error('Completable.create: There are no subscribers.'));
     }
     const single = new Completable(subscribeActual$7);
@@ -637,7 +658,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var delay = (source, amount, doDelayError) => {
-    if (typeof amount !== 'number') {
+    if (!isNumber(amount)) {
       return source;
     }
     const completable = new Completable(subscribeActual$9);
@@ -693,7 +714,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var delaySubscription = (source, amount) => {
-    if (typeof amount !== 'number') {
+    if (!isNumber(amount)) {
       return source;
     }
     const completable = new Completable(subscribeActual$a);
@@ -727,10 +748,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doAfterTerminate = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$b);
     completable.source = source;
     completable.callable = callable;
@@ -777,10 +797,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doFinally = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$c);
     completable.source = source;
     completable.callable = callable;
@@ -809,10 +828,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnAbort = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$d);
     completable.source = source;
     completable.callable = callable;
@@ -841,10 +859,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnComplete = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$e);
     completable.source = source;
     completable.callable = callable;
@@ -873,7 +890,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnError = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
 
@@ -908,10 +925,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnEvent = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$g);
     completable.source = source;
     completable.callable = callable;
@@ -940,7 +956,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnSubscribe = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
     const completable = new Completable(subscribeActual$h);
@@ -974,10 +990,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var doOnTerminate = (source, callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$i);
     completable.source = source;
     completable.callable = callable;
@@ -1064,7 +1079,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var fromCallable = (callable) => {
-    if (typeof callable !== 'function') {
+    if (!isFunction(callable)) {
       return error(new Error('Completable.fromCallable: callable received is not a function.'));
     }
     const completable = new Completable(subscribeActual$k);
@@ -1096,7 +1111,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var fromResolvable = (subscriber) => {
-    if (typeof subscriber !== 'function') {
+    if (!isFunction(subscriber)) {
       return error(new Error('Completable.fromResolvable: expects a function.'));
     }
     const completable = new Completable(subscribeActual$l);
@@ -1128,10 +1143,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var lift = (source, operator) => {
-    if (typeof operator !== 'function') {
+    if (!isFunction(operator)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$m);
     completable.source = source;
     completable.operator = operator;
@@ -1352,10 +1366,9 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var onErrorComplete = (source, item) => {
-    if (typeof item !== 'function') {
+    if (!isFunction(item)) {
       return source;
     }
-
     const completable = new Completable(subscribeActual$q);
     completable.source = source;
     completable.item = item;
@@ -1388,7 +1401,7 @@ var Completable = (function (AbortController) {
       onError(x) {
         let result;
 
-        if (typeof resumeIfError === 'function') {
+        if (isFunction(resumeIfError)) {
           try {
             result = resumeIfError(x);
             if (!(result instanceof Completable)) {
@@ -1422,7 +1435,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var onErrorResumeNext = (source, resumeIfError) => {
-    if (!(typeof resumeIfError === 'function' || resumeIfError instanceof Completable)) {
+    if (!(isFunction(resumeIfError) || resumeIfError instanceof Completable)) {
       return source;
     }
 
@@ -1463,7 +1476,7 @@ var Completable = (function (AbortController) {
           signal.addEventListener('abort', () => ac.abort());
         },
         onComplete() {
-          if (typeof times === 'number') {
+          if (isNumber(times)) {
             if (retries <= times) {
               sub();
             } else {
@@ -1488,7 +1501,7 @@ var Completable = (function (AbortController) {
    */
   var repeat = (source, times) => {
     if (times != null) {
-      if (typeof times !== 'number') {
+      if (!isNumber(times)) {
         return source;
       }
       if (times <= 0) {
@@ -1529,7 +1542,7 @@ var Completable = (function (AbortController) {
           signal.addEventListener('abort', () => ac.abort());
         },
         onComplete() {
-          if (typeof predicate === 'function') {
+          if (isFunction(predicate)) {
             const result = predicate();
 
             if (result) {
@@ -1596,7 +1609,7 @@ var Completable = (function (AbortController) {
           controller.abort();
         },
         onError(x) {
-          if (typeof bipredicate === 'function') {
+          if (isFunction(bipredicate)) {
             const result = bipredicate(retries, x);
 
             if (result) {
@@ -1795,7 +1808,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var timeout = (source, amount) => {
-    if (typeof amount !== 'number') {
+    if (!isNumber(amount)) {
       return source;
     }
     const completable = new Completable(subscribeActual$x);
@@ -1831,7 +1844,7 @@ var Completable = (function (AbortController) {
    * @ignore
    */
   var timer = (amount) => {
-    if (typeof amount !== 'number') {
+    if (!isNumber(amount)) {
       return error(new Error('Completable.timer: "amount" is not a number.'));
     }
     const completable = new Completable(subscribeActual$y);
