@@ -1,5 +1,7 @@
 import AbortController from 'abort-controller';
-import { onErrorHandler, onCompleteHandler, cleanObserver } from '../utils';
+import {
+  onErrorHandler, onCompleteHandler, cleanObserver, isFunction,
+} from '../utils';
 import Completable from '../../completable';
 import error from './error';
 
@@ -27,7 +29,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (subscriber) => {
-  if (typeof subscriber !== 'function') {
+  if (!isFunction(subscriber)) {
     return error(new Error('Completable.fromResolvable: expects a function.'));
   }
   const completable = new Completable(subscribeActual);
