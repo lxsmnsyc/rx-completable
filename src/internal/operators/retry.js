@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isFunction } from '../utils';
 
 /**
  * @ignore
@@ -37,7 +37,7 @@ function subscribeActual(observer) {
         controller.abort();
       },
       onError(x) {
-        if (typeof bipredicate === 'function') {
+        if (isFunction(bipredicate)) {
           const result = bipredicate(retries, x);
 
           if (result) {
