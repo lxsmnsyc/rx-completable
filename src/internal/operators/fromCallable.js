@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import {
-  isPromise, cleanObserver, onErrorHandler, onCompleteHandler,
+  isPromise, cleanObserver, onErrorHandler, onCompleteHandler, isFunction,
 } from '../utils';
 import Completable from '../../completable';
 import error from './error';
@@ -52,7 +52,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (callable) => {
-  if (typeof callable !== 'function') {
+  if (!isFunction(callable)) {
     return error(new Error('Completable.fromCallable: callable received is not a function.'));
   }
   const completable = new Completable(subscribeActual);
