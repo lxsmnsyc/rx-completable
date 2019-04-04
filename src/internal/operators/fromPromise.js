@@ -1,7 +1,7 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
 import {
-  isPromise, cleanObserver,
+  isPromise, onCompleteHandler, onErrorHandler, cleanObserver,
 } from '../utils';
 import error from './error';
 /**
@@ -17,9 +17,13 @@ function subscribeActual(observer) {
     return;
   }
 
+  this.controller = controller;
+  this.onComplete = onComplete;
+  this.onError = onError;
+
   this.promise.then(
-    () => onComplete(),
-    onError,
+    onCompleteHandler.bind(this),
+    onErrorHandler.bind(this),
   );
 }
 /**
