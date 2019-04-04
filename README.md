@@ -71,6 +71,8 @@ npm run build
 ```
 
 ## Changelogs
+* 0.5.0
+  - Fixed fromCallable and fromPromise from subscription overhead.
 * 0.4.0
   - Replaced operator bindings with operator reference + Function.call
 * 0.3.0
