@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isFunction } from '../utils';
 
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
@@ -28,7 +28,7 @@ function subscribeActual(observer) {
     onError(x) {
       let result;
 
-      if (typeof resumeIfError === 'function') {
+      if (isFunction(resumeIfError)) {
         try {
           result = resumeIfError(x);
           if (!(result instanceof Completable)) {
@@ -62,7 +62,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, resumeIfError) => {
-  if (!(typeof resumeIfError === 'function' || resumeIfError instanceof Completable)) {
+  if (!(isFunction(resumeIfError) || resumeIfError instanceof Completable)) {
     return source;
   }
 
