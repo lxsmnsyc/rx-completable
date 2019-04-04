@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import {
-  onErrorHandler, onCompleteHandler, cleanObserver,
+  onErrorHandler, onCompleteHandler, cleanObserver, isFunction,
 } from '../utils';
 import Completable from '../../completable';
 import error from './error';
@@ -31,7 +31,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (subscriber) => {
-  if (typeof subscriber !== 'function') {
+  if (!isFunction(subscriber)) {
     return error(new Error('Completable.create: There are no subscribers.'));
   }
   const single = new Completable(subscribeActual);
