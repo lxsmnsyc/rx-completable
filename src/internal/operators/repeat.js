@@ -1,6 +1,6 @@
 import AbortController from 'abort-controller';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isNumber } from '../utils';
 
 /**
  * @ignore
@@ -33,7 +33,7 @@ function subscribeActual(observer) {
         signal.addEventListener('abort', () => ac.abort());
       },
       onComplete() {
-        if (typeof times === 'number') {
+        if (isNumber(times)) {
           if (retries <= times) {
             sub();
           } else {
@@ -58,7 +58,7 @@ function subscribeActual(observer) {
  */
 export default (source, times) => {
   if (times != null) {
-    if (typeof times !== 'number') {
+    if (!isNumber(times)) {
       return source;
     }
     if (times <= 0) {
