@@ -28,11 +28,13 @@ CDN
 
 * jsDelivr
 ```html
+<script src="https://cdn.jsdelivr.net/npm/rx-scheduler/dist/index.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/rx-completable/dist/index.min.js"></script>
 ```
 
 * unpkg
 ```html
+<script src="https://unpkg.com/rx-scheduler/dist/index.min.js"></script>
 <script src="https://unpkg.com/rx-completable/dist/index.min.js"></script>
 ```
 
@@ -71,6 +73,10 @@ npm run build
 ```
 
 ## Changelogs
+* 0.6.0
+  - now uses [Schedulers](https://github.com/LXSMNSYC/rx-scheduler)
+  - `delay`, `delaySubscription`, `timeout` and `timer` now accepts `Schedulers` (defaults to `Scheduler.current`).
+  - added two new operators: `observeOn` (observes the emissions on a given Scheduler) and `subscribeOn` (subscribes to a given Single on a given Scheduler).
 * 0.5.0
   - Fixed fromCallable and fromPromise from subscription overhead.
 * 0.4.0
