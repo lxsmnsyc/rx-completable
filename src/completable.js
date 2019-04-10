@@ -25,7 +25,9 @@
  * @author Alexis Munsayac <alexis.munsayac@gmail.com>
  * @copyright Alexis Munsayac 2019
  */
-
+/**
+ * @external {Scheduler} https://lxsmnsyc.github.io/rx-scheduler/
+ */
 /**
  * @external {Iterable} https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols
  */
@@ -50,7 +52,8 @@ import {
   fromPromise, fromResolvable, lift, merge,
   mergeWith, never, onErrorComplete,
   onErrorResumeNext, repeat, retry,
-  startWith, timeout, timer, takeUntil, repeatUntil,
+  startWith, timeout, timer, takeUntil,
+  repeatUntil, observeOn, subscribeOn,
 } from './internal/operators';
 
 /**
@@ -246,13 +249,16 @@ export default class Completable {
    * @param {!number} amount
    * the amount of time the success signal should be
    * delayed for (in milliseconds).
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @param {?boolean} doDelayOnError
    * if true, both success and error signals are delayed.
    * if false, only success signals are delayed.
    * @returns {Completable}
    */
-  delay(amount, doDelayOnError) {
-    return delay(this, amount, doDelayOnError);
+  delay(amount, scheduler, doDelayOnError) {
+    return delay(this, amount, scheduler, doDelayOnError);
   }
 
   /**
@@ -262,10 +268,13 @@ export default class Completable {
    * @param {!Number} amount
    * the time amount to wait with the subscription
    * (in milliseconds).
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  delaySubscription(amount) {
-    return delaySubscription(this, amount);
+  delaySubscription(amount, scheduler) {
+    return delaySubscription(this, amount, scheduler);
   }
 
   /**
@@ -525,10 +534,28 @@ export default class Completable {
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.never.png" class="diagram">
    *
    * @returns {Completable}
-   * the singleton instance that never calls onError or onComplete
+   * the Completableton instance that never calls onError or onComplete
    */
   static never() {
     return never();
+  }
+
+  /**
+   * Returns a Completable which emits the terminal events from the
+   * thread of the specified scheduler.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.subscribeOn.png" class="diagram">
+   *
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
+   *
+   * @returns {Completable}
+   * the source Completable modified so that its subscribers are
+   * notified on the specified Scheduler
+   */
+  observeOn(scheduler) {
+    return observeOn(this, scheduler);
   }
 
   /**
@@ -629,6 +656,24 @@ export default class Completable {
   }
 
   /**
+   * Returns a Completable which subscribes the child subscriber on the specified scheduler,
+   * making sure the subscription side-effects happen on that specific thread of the scheduler.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.subscribeOn.png" class="diagram">
+   *
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
+   *
+   * @returns {Completable}
+   * the source Completable modified so that its subscriptions happen
+   * on the specified Scheduler
+   */
+  subscribeOn(scheduler) {
+    return subscribeOn(this, scheduler);
+  }
+
+  /**
    * Returns a Completable that emits the item emitted by
    * the source Completable until a second Completable emits an
    * item. Upon emission of an item from other,
@@ -657,10 +702,13 @@ export default class Completable {
    *
    * @param {!Number} amount
    * amount of time in milliseconds.
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  timeout(amount) {
-    return timeout(this, amount);
+  timeout(amount, scheduler) {
+    return timeout(this, amount, scheduler);
   }
 
   /**
@@ -670,10 +718,13 @@ export default class Completable {
    *
    * @param {!Number} amount
    * the amount of time in milliseconds.
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  static timer(amount) {
-    return timer(amount);
+  static timer(amount, scheduler) {
+    return timer(amount, scheduler);
   }
 
   /**
