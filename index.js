@@ -3,6 +3,7 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var AbortController = _interopDefault(require('abort-controller'));
+var Scheduler = _interopDefault(require('rx-scheduler'));
 
 /**
  * @ignore
@@ -615,9 +616,7 @@ var defer = (supplier) => {
 function subscribeActual$9(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const { amount, doDelayError } = this;
-
-  let timeout;
+  const { amount, scheduler, doDelayError } = this;
 
   const controller = new AbortController();
 
@@ -629,12 +628,6 @@ function subscribeActual$9(observer) {
     return;
   }
 
-  signal.addEventListener('abort', () => {
-    if (typeof timeout !== 'undefined') {
-      clearTimeout(timeout);
-    }
-  });
-
   this.source.subscribeWith({
     onSubscribe(ac) {
       signal.addEventListener('abort', () => {
@@ -642,29 +635,42 @@ function subscribeActual$9(observer) {
       });
     },
     onComplete() {
-      timeout = setTimeout(() => {
+      const ac = scheduler.delay(() => {
         onComplete();
         controller.abort();
       }, amount);
+
+      signal.addEventListener('abort', () => {
+        ac.abort();
+      });
     },
     onError(x) {
-      timeout = setTimeout(() => {
+      const ac = scheduler.delay(() => {
         onError(x);
         controller.abort();
       }, doDelayError ? amount : 0);
+
+      signal.addEventListener('abort', () => {
+        ac.abort();
+      });
     },
   });
 }
 /**
  * @ignore
  */
-var delay = (source, amount, doDelayError) => {
+var delay = (source, amount, scheduler, doDelayError) => {
   if (!isNumber(amount)) {
     return source;
+  }
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
   }
   const completable = new Completable(subscribeActual$9);
   completable.source = source;
   completable.amount = amount;
+  completable.scheduler = sched;
   completable.doDelayError = doDelayError;
   return completable;
 };
@@ -675,19 +681,10 @@ var delay = (source, amount, doDelayError) => {
 function subscribeActual$a(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const { amount } = this;
-
-  let timeout;
-
+  const { amount, scheduler } = this;
   const controller = new AbortController();
 
   const { signal } = controller;
-
-  signal.addEventListener('abort', () => {
-    if (typeof timeout !== 'undefined') {
-      clearTimeout(timeout);
-    }
-  });
 
   onSubscribe(controller);
 
@@ -695,7 +692,7 @@ function subscribeActual$a(observer) {
     return;
   }
 
-  timeout = setTimeout(() => {
+  const abortable = scheduler.delay(() => {
     this.source.subscribeWith({
       onSubscribe(ac) {
         signal.addEventListener('abort', () => ac.abort());
@@ -710,17 +707,24 @@ function subscribeActual$a(observer) {
       },
     });
   }, amount);
+
+  signal.addEventListener('abort', () => abortable.abort());
 }
 /**
  * @ignore
  */
-var delaySubscription = (source, amount) => {
+var delaySubscription = (source, amount, scheduler) => {
   if (!isNumber(amount)) {
     return source;
+  }
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
   }
   const completable = new Completable(subscribeActual$a);
   completable.source = source;
   completable.amount = amount;
+  completable.scheduler = sched;
   return completable;
 };
 
@@ -1340,6 +1344,52 @@ var never = () => {
 };
 
 function subscribeActual$q(observer) {
+  const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+  const { source, scheduler } = this;
+
+  const controller = new AbortController();
+  onSubscribe(controller);
+
+  const { signal } = controller;
+
+  if (signal.aborted) {
+    return;
+  }
+
+  source.subscribeWith({
+    onSubscribe(ac) {
+      signal.addEventListener('abort', () => ac.abort());
+    },
+    onComplete() {
+      scheduler.schedule(() => {
+        onComplete();
+        controller.abort();
+      });
+    },
+    onError(x) {
+      scheduler.schedule(() => {
+        onError(x);
+        controller.abort();
+      });
+    },
+  });
+}
+/**
+ * @ignore
+ */
+var observeOn = (source, scheduler) => {
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
+  }
+  const completable = new Completable(subscribeActual$q);
+  completable.source = source;
+  completable.scheduler = sched;
+  return completable;
+};
+
+function subscribeActual$r(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const { source, item } = this;
@@ -1370,13 +1420,13 @@ var onErrorComplete = (source, item) => {
   if (!isFunction(item)) {
     return source;
   }
-  const completable = new Completable(subscribeActual$q);
+  const completable = new Completable(subscribeActual$r);
   completable.source = source;
   completable.item = item;
   return completable;
 };
 
-function subscribeActual$r(observer) {
+function subscribeActual$s(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const { source, resumeIfError } = this;
@@ -1440,7 +1490,7 @@ var onErrorResumeNext = (source, resumeIfError) => {
     return source;
   }
 
-  const completable = new Completable(subscribeActual$r);
+  const completable = new Completable(subscribeActual$s);
   completable.source = source;
   completable.resumeIfError = resumeIfError;
   return completable;
@@ -1449,7 +1499,7 @@ var onErrorResumeNext = (source, resumeIfError) => {
 /**
  * @ignore
  */
-function subscribeActual$s(observer) {
+function subscribeActual$t(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
@@ -1509,7 +1559,7 @@ var repeat = (source, times) => {
       return source;
     }
   }
-  const completable = new Completable(subscribeActual$s);
+  const completable = new Completable(subscribeActual$t);
   completable.source = source;
   completable.times = times;
   return completable;
@@ -1518,7 +1568,7 @@ var repeat = (source, times) => {
 /**
  * @ignore
  */
-function subscribeActual$t(observer) {
+function subscribeActual$u(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
@@ -1569,7 +1619,7 @@ function subscribeActual$t(observer) {
  * @ignore
  */
 var repeatUntil = (source, predicate) => {
-  const completable = new Completable(subscribeActual$t);
+  const completable = new Completable(subscribeActual$u);
   completable.source = source;
   completable.predicate = predicate;
   return completable;
@@ -1578,7 +1628,7 @@ var repeatUntil = (source, predicate) => {
 /**
  * @ignore
  */
-function subscribeActual$u(observer) {
+function subscribeActual$v(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
@@ -1633,7 +1683,7 @@ function subscribeActual$u(observer) {
  * @ignore
  */
 var retry = (source, bipredicate) => {
-  const completable = new Completable(subscribeActual$u);
+  const completable = new Completable(subscribeActual$v);
   completable.source = source;
   completable.bipredicate = bipredicate;
   return completable;
@@ -1642,7 +1692,7 @@ var retry = (source, bipredicate) => {
 /**
  * @ignore
  */
-function subscribeActual$v(observer) {
+function subscribeActual$w(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const controller = new AbortController();
@@ -1690,16 +1740,63 @@ var startWith = (source, other) => {
   if (!(other instanceof Completable)) {
     return source;
   }
-  const completable = new Completable(subscribeActual$v);
+  const completable = new Completable(subscribeActual$w);
   completable.source = source;
   completable.other = other;
+  return completable;
+};
+
+function subscribeActual$x(observer) {
+  const { onSubscribe, onComplete, onError } = cleanObserver(observer);
+
+  const { source, scheduler } = this;
+
+  const controller = new AbortController();
+  onSubscribe(controller);
+
+  const { signal } = controller;
+
+  if (signal.aborted) {
+    return;
+  }
+
+  scheduler.schedule(() => {
+    if (signal.aborted) {
+      return;
+    }
+    source.subscribeWith({
+      onSubscribe(ac) {
+        signal.addEventListener('abort', () => ac.abort());
+      },
+      onComplete() {
+        onComplete();
+        controller.abort();
+      },
+      onError(x) {
+        onError(x);
+        controller.abort();
+      },
+    });
+  });
+}
+/**
+ * @ignore
+ */
+var subscribeOn = (source, scheduler) => {
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
+  }
+  const completable = new Completable(subscribeActual$x);
+  completable.source = source;
+  completable.scheduler = sched;
   return completable;
 };
 
 /**
  * @ignore
  */
-function subscribeActual$w(observer) {
+function subscribeActual$y(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
   const controller = new AbortController();
@@ -1755,7 +1852,7 @@ const takeUntil = (source, other) => {
     return source;
   }
 
-  const completable = new Completable(subscribeActual$w);
+  const completable = new Completable(subscribeActual$y);
   completable.source = source;
   completable.other = other;
   return completable;
@@ -1764,10 +1861,10 @@ const takeUntil = (source, other) => {
 /**
  * @ignore
  */
-function subscribeActual$x(observer) {
+function subscribeActual$z(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const { amount } = this;
+  const { amount, scheduler } = this;
 
   const controller = new AbortController();
 
@@ -1779,17 +1876,15 @@ function subscribeActual$x(observer) {
     return;
   }
 
-  const timeout = setTimeout(
+  const timeout = scheduler.delay(
     () => {
-      onError(new Error('Completable.timeout: TimeoutException (no complete signals within the specified timeout).'));
+      onError(new Error('Completable.timeout: TimeoutException (no success signals within the specified timeout).'));
       controller.abort();
     },
     amount,
   );
 
-  signal.addEventListener('abort', () => {
-    clearTimeout(timeout);
-  });
+  signal.addEventListener('abort', () => timeout.abort());
 
   this.source.subscribeWith({
     onSubscribe(ac) {
@@ -1808,22 +1903,26 @@ function subscribeActual$x(observer) {
 /**
  * @ignore
  */
-var timeout = (source, amount) => {
+var timeout = (source, amount, scheduler) => {
   if (!isNumber(amount)) {
     return source;
   }
-  const completable = new Completable(subscribeActual$x);
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
+  }
+  const completable = new Completable(subscribeActual$z);
   completable.source = source;
   completable.amount = amount;
+  completable.scheduler = sched;
   return completable;
 };
 
 /**
  * @ignore
  */
-function subscribeActual$y(observer) {
+function subscribeActual$A(observer) {
   const { onComplete, onSubscribe } = cleanObserver(observer);
-
 
   const controller = new AbortController();
 
@@ -1835,21 +1934,25 @@ function subscribeActual$y(observer) {
     return;
   }
 
-  const timeout = setTimeout(onComplete, this.amount);
+  const timeout = this.scheduler.delay(() => onComplete(), this.amount);
 
-  signal.addEventListener('abort', () => {
-    clearTimeout(timeout);
-  });
+  signal.addEventListener('abort', () => timeout.abort());
 }
 /**
  * @ignore
  */
-var timer = (amount) => {
+var timer = (amount, scheduler) => {
   if (!isNumber(amount)) {
     return error(new Error('Completable.timer: "amount" is not a number.'));
   }
-  const completable = new Completable(subscribeActual$y);
+
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
+  }
+  const completable = new Completable(subscribeActual$A);
   completable.amount = amount;
+  completable.scheduler = sched;
   return completable;
 };
 
@@ -2076,13 +2179,16 @@ class Completable {
    * @param {!number} amount
    * the amount of time the success signal should be
    * delayed for (in milliseconds).
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @param {?boolean} doDelayOnError
    * if true, both success and error signals are delayed.
    * if false, only success signals are delayed.
    * @returns {Completable}
    */
-  delay(amount, doDelayOnError) {
-    return delay(this, amount, doDelayOnError);
+  delay(amount, scheduler, doDelayOnError) {
+    return delay(this, amount, scheduler, doDelayOnError);
   }
 
   /**
@@ -2092,10 +2198,13 @@ class Completable {
    * @param {!Number} amount
    * the time amount to wait with the subscription
    * (in milliseconds).
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  delaySubscription(amount) {
-    return delaySubscription(this, amount);
+  delaySubscription(amount, scheduler) {
+    return delaySubscription(this, amount, scheduler);
   }
 
   /**
@@ -2355,10 +2464,28 @@ class Completable {
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.never.png" class="diagram">
    *
    * @returns {Completable}
-   * the singleton instance that never calls onError or onComplete
+   * the Completableton instance that never calls onError or onComplete
    */
   static never() {
     return never();
+  }
+
+  /**
+   * Returns a Completable which emits the terminal events from the
+   * thread of the specified scheduler.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.subscribeOn.png" class="diagram">
+   *
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
+   *
+   * @returns {Completable}
+   * the source Completable modified so that its subscribers are
+   * notified on the specified Scheduler
+   */
+  observeOn(scheduler) {
+    return observeOn(this, scheduler);
   }
 
   /**
@@ -2459,6 +2586,24 @@ class Completable {
   }
 
   /**
+   * Returns a Completable which subscribes the child subscriber on the specified scheduler,
+   * making sure the subscription side-effects happen on that specific thread of the scheduler.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.subscribeOn.png" class="diagram">
+   *
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
+   *
+   * @returns {Completable}
+   * the source Completable modified so that its subscriptions happen
+   * on the specified Scheduler
+   */
+  subscribeOn(scheduler) {
+    return subscribeOn(this, scheduler);
+  }
+
+  /**
    * Returns a Completable that emits the item emitted by
    * the source Completable until a second Completable emits an
    * item. Upon emission of an item from other,
@@ -2487,10 +2632,13 @@ class Completable {
    *
    * @param {!Number} amount
    * amount of time in milliseconds.
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  timeout(amount) {
-    return timeout(this, amount);
+  timeout(amount, scheduler) {
+    return timeout(this, amount, scheduler);
   }
 
   /**
@@ -2500,10 +2648,13 @@ class Completable {
    *
    * @param {!Number} amount
    * the amount of time in milliseconds.
+   * @param {?Scheduler} scheduler
+   * the target scheduler to use for the non-blocking wait and emission.
+   * By default, schedules on the current thread.
    * @returns {Completable}
    */
-  static timer(amount) {
-    return timer(amount);
+  static timer(amount, scheduler) {
+    return timer(amount, scheduler);
   }
 
   /**
