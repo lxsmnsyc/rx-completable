@@ -1,4 +1,5 @@
 import AbortController from 'abort-controller';
+import Scheduler from 'rx-scheduler';
 import Completable from '../../completable';
 import { cleanObserver, isNumber } from '../utils';
 
@@ -8,9 +9,7 @@ import { cleanObserver, isNumber } from '../utils';
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const { amount, doDelayError } = this;
-
-  let timeout;
+  const { amount, scheduler, doDelayError } = this;
 
   const controller = new AbortController();
 
@@ -22,12 +21,6 @@ function subscribeActual(observer) {
     return;
   }
 
-  signal.addEventListener('abort', () => {
-    if (typeof timeout !== 'undefined') {
-      clearTimeout(timeout);
-    }
-  });
-
   this.source.subscribeWith({
     onSubscribe(ac) {
       signal.addEventListener('abort', () => {
@@ -35,29 +28,42 @@ function subscribeActual(observer) {
       });
     },
     onComplete() {
-      timeout = setTimeout(() => {
+      const ac = scheduler.delay(() => {
         onComplete();
         controller.abort();
       }, amount);
+
+      signal.addEventListener('abort', () => {
+        ac.abort();
+      });
     },
     onError(x) {
-      timeout = setTimeout(() => {
+      const ac = scheduler.delay(() => {
         onError(x);
         controller.abort();
       }, doDelayError ? amount : 0);
+
+      signal.addEventListener('abort', () => {
+        ac.abort();
+      });
     },
   });
 }
 /**
  * @ignore
  */
-export default (source, amount, doDelayError) => {
+export default (source, amount, scheduler, doDelayError) => {
   if (!isNumber(amount)) {
     return source;
+  }
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
   }
   const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.amount = amount;
+  completable.scheduler = sched;
   completable.doDelayError = doDelayError;
   return completable;
 };
