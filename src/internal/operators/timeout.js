@@ -1,5 +1,6 @@
 
 import AbortController from 'abort-controller';
+import Scheduler from 'rx-scheduler';
 import Completable from '../../completable';
 import { cleanObserver, isNumber } from '../utils';
 
@@ -9,7 +10,7 @@ import { cleanObserver, isNumber } from '../utils';
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const { amount } = this;
+  const { amount, scheduler } = this;
 
   const controller = new AbortController();
 
@@ -21,17 +22,15 @@ function subscribeActual(observer) {
     return;
   }
 
-  const timeout = setTimeout(
+  const timeout = scheduler.delay(
     () => {
-      onError(new Error('Completable.timeout: TimeoutException (no complete signals within the specified timeout).'));
+      onError(new Error('Completable.timeout: TimeoutException (no success signals within the specified timeout).'));
       controller.abort();
     },
     amount,
   );
 
-  signal.addEventListener('abort', () => {
-    clearTimeout(timeout);
-  });
+  signal.addEventListener('abort', () => timeout.abort());
 
   this.source.subscribeWith({
     onSubscribe(ac) {
@@ -50,12 +49,17 @@ function subscribeActual(observer) {
 /**
  * @ignore
  */
-export default (source, amount) => {
+export default (source, amount, scheduler) => {
   if (!isNumber(amount)) {
     return source;
+  }
+  let sched = scheduler;
+  if (!(sched instanceof Scheduler.interface)) {
+    sched = Scheduler.current;
   }
   const completable = new Completable(subscribeActual);
   completable.source = source;
   completable.amount = amount;
+  completable.scheduler = sched;
   return completable;
 };
