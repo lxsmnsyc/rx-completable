@@ -44,30 +44,30 @@ describe('#delay', () => {
   /**
    *
    */
-  it('should not signal complete if aborted.', (done) => {
+  it('should not signal complete if cancelled.', (done) => {
     const source = Completable.complete().delay(100);
     const controller = source.subscribe(
       () => done(false),
       () => done(false),
     );
 
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
   /**
    *
    */
-  it('should not signal error if aborted.', (done) => {
+  it('should not signal error if cancelled.', (done) => {
     const source = Completable.error(new Error('Hello')).delay(100);
     const controller = source.subscribe(
       () => done(false),
       () => done(false),
     );
 
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
