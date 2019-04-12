@@ -1,5 +1,5 @@
-import AbortController from 'abort-controller';
 import Scheduler from 'rx-scheduler';
+import { LinkedCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { cleanObserver, isNumber } from '../utils';
 
@@ -10,33 +10,23 @@ function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
   const { amount, scheduler } = this;
-  const controller = new AbortController();
 
-  const { signal } = controller;
+  const controller = new LinkedCancellable();
 
   onSubscribe(controller);
 
-  if (signal.aborted) {
-    return;
-  }
-
-  const abortable = scheduler.delay(() => {
-    this.source.subscribeWith({
-      onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
-      },
-      onComplete() {
-        onComplete();
-        controller.abort();
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
-    });
-  }, amount);
-
-  signal.addEventListener('abort', () => abortable.abort());
+  controller.link(
+    scheduler.delay(() => {
+      controller.unlink();
+      this.source.subscribeWith({
+        onSubscribe(ac) {
+          controller.link(ac);
+        },
+        onComplete,
+        onError,
+      });
+    }, amount),
+  );
 }
 /**
  * @ignore
