@@ -27,6 +27,17 @@ describe('#fromResolvable', () => {
   /**
    *
    */
+  it('should error with the given error.', (done) => {
+    const completable = Completable.fromResolvable((res, rej) => rej(new Error('Hello World')));
+
+    completable.subscribe(
+      () => done(false),
+      () => done(),
+    );
+  });
+  /**
+   *
+   */
   it('should signal error if the given value is not a function', (done) => {
     const completable = Completable.fromResolvable();
 
