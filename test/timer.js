@@ -37,7 +37,7 @@ describe('#timer', () => {
   /**
    *
    */
-  it('should not signal complete if aborted.', (done) => {
+  it('should not signal complete if cancelled.', (done) => {
     const completable = Completable.timer(100);
     const controller = completable.subscribe(
       () => done(false),
@@ -45,8 +45,8 @@ describe('#timer', () => {
     );
 
 
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
