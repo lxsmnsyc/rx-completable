@@ -55,30 +55,30 @@ describe('#timeout', () => {
   /**
    *
    */
-  it('should not signal complete if aborted.', (done) => {
+  it('should not signal complete if cancelled.', (done) => {
     const source = Completable.timer(200).timeout(100);
     const controller = source.subscribe(
       () => done(false),
       () => done(false),
     );
 
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
   /**
    *
    */
-  it('should not signal error if aborted.', (done) => {
+  it('should not signal error if cancelled.', (done) => {
     const source = Completable.error(new Error('Hello')).delay(200).timeout(100);
     const controller = source.subscribe(
       () => done(false),
       () => done(false),
     );
 
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
