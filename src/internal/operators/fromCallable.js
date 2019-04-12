@@ -1,10 +1,10 @@
-import AbortController from 'abort-controller';
-import {
-  isPromise, cleanObserver, onErrorHandler, onCompleteHandler, isFunction,
-} from '../utils';
 import Completable from '../../completable';
+import CompletableEmitter from '../../emitter';
 import error from './error';
 import fromPromise from './fromPromise';
+import {
+  isPromise, cleanObserver, isFunction,
+} from '../utils';
 
 /**
  * @ignore
@@ -12,40 +12,32 @@ import fromPromise from './fromPromise';
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const controller = new AbortController();
+  const emitter = new CompletableEmitter(onComplete, onError);
 
-  onSubscribe(controller);
-
-  if (controller.signal.aborted) {
-    return;
-  }
-
-  this.controller = controller;
-  this.onComplete = onComplete;
-  this.onError = onError;
-
-  const resolve = onCompleteHandler.bind(this);
-  const reject = onErrorHandler.bind(this);
-
+  onSubscribe(emitter);
 
   let result;
   try {
     result = this.callable();
   } catch (e) {
-    reject(e);
+    emitter.onError(e);
     return;
   }
 
   if (isPromise(result)) {
     fromPromise(result).subscribeWith({
       onSubscribe(ac) {
-        controller.signal.addEventListener('abort', () => ac.abort());
+        emitter.setCancellable(ac);
       },
-      onComplete: resolve,
-      onError: reject,
+      onComplete() {
+        emitter.onComplete();
+      },
+      onError(e) {
+        emitter.onError(e);
+      },
     });
   } else {
-    resolve();
+    emitter.onComplete();
   }
 }
 /**
