@@ -48,7 +48,7 @@ describe('#doFinally', () => {
   /**
    *
    */
-  it('should call the given function on dispose.', (done) => {
+  it('should call the given function on cancel.', (done) => {
     const source = Completable.timer(100);
     const completable = source.doFinally(() => done());
 
@@ -56,6 +56,6 @@ describe('#doFinally', () => {
       () => done(false),
       () => done(false),
     );
-    controller.abort();
+    controller.cancel();
   });
 });
