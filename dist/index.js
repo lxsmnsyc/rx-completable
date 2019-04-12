@@ -1,7 +1,6 @@
-var Completable = (function (AbortController, Scheduler) {
+var Completable = (function (rxCancellable, Scheduler) {
   'use strict';
 
-  AbortController = AbortController && AbortController.hasOwnProperty('default') ? AbortController['default'] : AbortController;
   Scheduler = Scheduler && Scheduler.hasOwnProperty('default') ? Scheduler['default'] : Scheduler;
 
   /**
@@ -44,39 +43,6 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function onCompleteHandler() {
-    const { onComplete, controller } = this;
-    if (controller.signal.aborted) {
-      return;
-    }
-    try {
-      onComplete();
-    } finally {
-      controller.abort();
-    }
-  }
-  /**
-   * @ignore
-   */
-  function onErrorHandler(err) {
-    const { onError, controller } = this;
-    let report = err;
-    if (!(err instanceof Error)) {
-      report = new Error('onError called with a non-Error value.');
-    }
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    try {
-      onError(report);
-    } finally {
-      controller.abort();
-    }
-  }
-  /**
-   * @ignore
-   */
   const identity = x => x;
   /**
    * @ignore
@@ -96,12 +62,12 @@ var Completable = (function (AbortController, Scheduler) {
   const immediateComplete = (o) => {
     // const disposable = new SimpleDisposable();
     const { onSubscribe, onComplete } = cleanObserver(o);
-    const controller = new AbortController();
+    const controller = new rxCancellable.BooleanCancellable();
     onSubscribe(controller);
 
-    if (!controller.signal.aborted) {
+    if (!controller.cancelled) {
       onComplete();
-      controller.abort();
+      controller.cancel();
     }
   };
   /**
@@ -109,12 +75,12 @@ var Completable = (function (AbortController, Scheduler) {
    */
   const immediateError = (o, x) => {
     const { onSubscribe, onError } = cleanObserver(o);
-    const controller = new AbortController();
+    const controller = new rxCancellable.BooleanCancellable();
     onSubscribe(controller);
 
-    if (!controller.signal.aborted) {
+    if (!controller.cancelled) {
       onError(x);
-      controller.abort();
+      controller.cancel();
     }
   };
 
@@ -158,42 +124,36 @@ var Completable = (function (AbortController, Scheduler) {
   function subscribeActual$1(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.CompositeCancellable();
 
     onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
 
     const { sources } = this;
 
     // eslint-disable-next-line no-restricted-syntax
     for (const completable of sources) {
-      if (signal.aborted) {
+      if (controller.cancelled) {
         return;
       }
 
       if (completable instanceof Completable) {
         completable.subscribeWith({
           onSubscribe(ac) {
-            signal.addEventListener('abort', () => ac.abort());
+            controller.add(ac);
           },
           // eslint-disable-next-line no-loop-func
           onComplete() {
             onComplete();
-            controller.abort();
+            controller.cancel();
           },
           onError(x) {
             onError(x);
-            controller.abort();
+            controller.cancel();
           },
         });
       } else {
         onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
-        controller.abort();
+        controller.cancel();
         break;
       }
     }
@@ -213,109 +173,81 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$2(observer) {
-    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
-
-    const controller = new AbortController();
-
-    const { signal } = controller;
-
-    onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
-
-    const sharedComplete = () => {
-      if (!signal.aborted) {
-        onComplete();
-        controller.abort();
-      }
-    };
-    const sharedError = (x) => {
-      if (!signal.aborted) {
-        onError(x);
-        controller.abort();
-      }
-    };
-
-    const { source, other } = this;
-
-    source.subscribeWith({
-      onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
-      },
-      onComplete: sharedComplete,
-      onError: sharedError,
-    });
-    other.subscribeWith({
-      onSubscribe(ac) {
-        if (signal.aborted) {
-          ac.abort();
-        } else {
-          signal.addEventListener('abort', () => ac.abort());
-        }
-      },
-      onComplete: sharedComplete,
-      onError: sharedError,
-    });
-  }
-  /**
-   * @ignore
-   */
   var ambWith = (source, other) => {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$2);
-    completable.source = source;
-    completable.other = other;
-    return completable;
+    return amb([source, other]);
   };
+
+  /* eslint-disable no-restricted-syntax */
 
   /**
    * @ignore
    */
-  function subscribeActual$3(observer) {
+  function subscribeActual$2(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
+    const { sources } = this;
+
+    const buffer = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const completable of sources) {
+      if (completable instanceof Completable) {
+        buffer.unshift(completable);
+      } else {
+        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        controller.cancel();
+        return;
+      }
     }
 
-    const { source, other } = this;
+    let current;
+    for (const completable of buffer) {
+      if (typeof current === 'undefined') {
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              controller.link(ac);
+            },
+            onComplete,
+            onError,
+          });
+        };
+      } else {
+        const prev = current;
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              controller.link(ac);
+            },
+            onComplete() {
+              controller.unlink();
+              prev();
+            },
+            onError,
+          });
+        };
+      }
+    }
 
-    source.subscribeWith({
-      onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
-      },
-      onComplete() {
-        other.subscribeWith({
-          onSubscribe(ac) {
-            signal.addEventListener('abort', () => ac.abort());
-          },
-          onComplete() {
-            onComplete();
-            controller.abort();
-          },
-          onError(x) {
-            onError(x);
-            controller.abort();
-          },
-        });
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
-    });
+    current();
   }
+  /**
+   * @ignore
+   */
+  var concat = (sources) => {
+    if (!isIterable(sources)) {
+      return error(new Error('Completable.concat: sources is not Iterable.'));
+    }
+    const completable = new Completable(subscribeActual$2);
+    completable.sources = sources;
+    return completable;
+  };
 
   /**
    * @ignore
@@ -324,16 +256,13 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$3);
-    completable.source = source;
-    completable.other = other;
-    return completable;
+    return concat([source, other]);
   };
 
   /**
    * @ignore
    */
-  function subscribeActual$4(observer) {
+  function subscribeActual$3(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const {
@@ -344,9 +273,9 @@ var Completable = (function (AbortController, Scheduler) {
       const index = observers.length;
       observers[index] = observer;
 
-      const controller = new AbortController();
+      const controller = new rxCancellable.BooleanCancellable();
 
-      controller.signal.addEventListener('abort', () => {
+      controller.addEventListener('cancel', () => {
         observers.splice(index, 1);
       });
 
@@ -364,6 +293,7 @@ var Completable = (function (AbortController, Scheduler) {
             for (const obs of observers) {
               obs.onComplete();
             }
+            controller.cancel();
             this.observers = undefined;
           },
           onError: (x) => {
@@ -374,13 +304,14 @@ var Completable = (function (AbortController, Scheduler) {
             for (const obs of observers) {
               obs.onError(x);
             }
+            controller.cancel();
             this.observers = undefined;
           },
         });
         this.subscribed = true;
       }
     } else {
-      const controller = new AbortController();
+      const controller = new rxCancellable.BooleanCancellable();
       onSubscribe(controller);
 
       const { error } = this;
@@ -389,7 +320,7 @@ var Completable = (function (AbortController, Scheduler) {
       } else {
         onComplete();
       }
-      controller.abort();
+      controller.cancel();
     }
   }
 
@@ -397,7 +328,7 @@ var Completable = (function (AbortController, Scheduler) {
    * @ignore
    */
   var cache = (source) => {
-    const completable = new Completable(subscribeActual$4);
+    const completable = new Completable(subscribeActual$3);
     completable.source = source;
     completable.cached = false;
     completable.subscribed = false;
@@ -408,7 +339,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$5(observer) {
+  function subscribeActual$4(observer) {
     immediateComplete(observer);
   }
 
@@ -418,8 +349,7 @@ var Completable = (function (AbortController, Scheduler) {
    */
   var complete = () => {
     if (typeof INSTANCE === 'undefined') {
-      INSTANCE = new Completable(subscribeActual$5);
-      INSTANCE.subscribeActual = subscribeActual$5.bind(INSTANCE);
+      INSTANCE = new Completable(subscribeActual$4);
     }
     return INSTANCE;
   };
@@ -447,109 +377,117 @@ var Completable = (function (AbortController, Scheduler) {
     return result;
   };
 
-  /* eslint-disable no-restricted-syntax */
-
   /**
    * @ignore
    */
-  function subscribeActual$6(observer) {
-    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+  const LINK = new WeakMap();
+  /**
+   * Abstraction over a CompletableObserver that allows associating
+   * a resource with it.
+   *
+   * Calling onComplete() multiple times has no effect.
+   * Calling onError(Error) multiple times or after onComplete
+   * has no effect.
+   */
+  // eslint-disable-next-line no-unused-vars
+  class CompletableEmitter extends rxCancellable.Cancellable {
+    constructor(complete, error) {
+      super();
+      /**
+       * @ignore
+       */
+      this.complete = complete;
+      /**
+       * @ignore
+       */
+      this.error = error;
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
-
-    onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
+      LINK.set(this, new rxCancellable.BooleanCancellable());
     }
 
-    const { sources } = this;
+    /**
+     * Returns true if the emitter is cancelled.
+     * @returns {boolean}
+     */
+    get cancelled() {
+      return LINK.get(this).cancelled;
+    }
 
-    const buffer = [];
-    // eslint-disable-next-line no-restricted-syntax
-    for (const completable of sources) {
-      if (signal.aborted) {
+    /**
+     * Returns true if the emitter is cancelled successfully.
+     * @returns {boolean}
+     */
+    cancel() {
+      return LINK.get(this).cancel();
+    }
+
+    /**
+     * Set the given Cancellable as the Emitter's cancellable state.
+     * @param {Cancellable} cancellable
+     * The Cancellable instance
+     * @returns {boolean}
+     * Returns true if the cancellable is valid.
+     */
+    setCancellable(cancellable) {
+      if (cancellable instanceof rxCancellable.Cancellable) {
+        if (this.cancelled) {
+          cancellable.cancel();
+        } else if (cancellable.cancelled) {
+          this.cancel();
+          return true;
+        } else {
+          const link = LINK.get(this);
+          LINK.set(this, cancellable);
+          link.cancel();
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /**
+     * Emits a completion.
+     */
+    // eslint-disable-next-line class-methods-use-this, no-unused-vars
+    onComplete() {
+      if (this.cancelled) {
         return;
       }
-      if (completable instanceof Completable) {
-        buffer.unshift(completable);
-      } else {
-        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
-        controller.abort();
-        break;
+      try {
+        this.complete();
+      } finally {
+        this.cancel();
       }
     }
 
-    if (signal.aborted) {
-      return;
-    }
-
-    let current;
-    for (const completable of buffer) {
-      if (typeof current === 'undefined') {
-        current = () => {
-          completable.subscribeWith({
-            onSubscribe(ac) {
-              signal.addEventListener('abort', () => ac.abort());
-            },
-            onComplete() {
-              onComplete();
-              controller.abort();
-            },
-            onError(x) {
-              onError(x);
-              controller.abort();
-            },
-          });
-        };
-      } else {
-        const prev = current;
-        current = () => {
-          completable.subscribeWith({
-            onSubscribe(ac) {
-              signal.addEventListener('abort', () => ac.abort());
-            },
-            onComplete() {
-              prev();
-            },
-            onError(x) {
-              onError(x);
-              controller.abort();
-            },
-          });
-        };
+    /**
+     * Emits an error value.
+     * @param {!Error} err
+     */
+    // eslint-disable-next-line class-methods-use-this, no-unused-vars
+    onError(err) {
+      let report = err;
+      if (!(err instanceof Error)) {
+        report = new Error('onError called with a non-Error value.');
+      }
+      if (this.cancelled) {
+        return;
+      }
+      try {
+        this.error(report);
+      } finally {
+        this.cancel();
       }
     }
-
-    current();
   }
-  /**
-   * @ignore
-   */
-  var concat = (sources) => {
-    if (!isIterable(sources)) {
-      return error(new Error('Completable.concat: sources is not Iterable.'));
-    }
-    const completable = new Completable(subscribeActual$6);
-    completable.sources = sources;
-    return completable;
-  };
 
   /**
    * @ignore
    */
-  function subscribeActual$7(observer) {
+  function subscribeActual$5(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const emitter = new AbortController();
-    emitter.onComplete = onCompleteHandler.bind(this);
-    emitter.onError = onErrorHandler.bind(this);
-
-    this.controller = emitter;
-    this.onComplete = onComplete;
-    this.onError = onError;
+    const emitter = new CompletableEmitter(onComplete, onError);
 
     onSubscribe(emitter);
 
@@ -563,19 +501,18 @@ var Completable = (function (AbortController, Scheduler) {
    * @ignore
    */
   var create = (subscriber) => {
-    if (!isFunction(subscriber)) {
+    if (typeof subscriber !== 'function') {
       return error(new Error('Completable.create: There are no subscribers.'));
     }
-    const single = new Completable(subscribeActual$7);
-    single.subscriber = subscriber;
-    single.subscribeActual = subscribeActual$7.bind(single);
-    return single;
+    const completable = new Completable(subscribeActual$5);
+    completable.subscriber = subscriber;
+    return completable;
   };
 
   /**
    * @ignore
    */
-  function subscribeActual$8(observer) {
+  function subscribeActual$6(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     let result;
@@ -604,7 +541,7 @@ var Completable = (function (AbortController, Scheduler) {
    * @ignore
    */
   var defer = (supplier) => {
-    const completable = new Completable(subscribeActual$8);
+    const completable = new Completable(subscribeActual$6);
     completable.supplier = supplier;
     return completable;
   };
@@ -612,46 +549,28 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$9(observer) {
+  function subscribeActual$7(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler, doDelayError } = this;
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
-    }
-
     this.source.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => {
-          ac.abort();
-        });
+        controller.link(ac);
       },
       onComplete() {
-        const ac = scheduler.delay(() => {
+        controller.link(scheduler.delay(() => {
           onComplete();
-          controller.abort();
-        }, amount);
-
-        signal.addEventListener('abort', () => {
-          ac.abort();
-        });
+        }, amount));
       },
       onError(x) {
-        const ac = scheduler.delay(() => {
+        controller.link(scheduler.delay(() => {
           onError(x);
-          controller.abort();
-        }, doDelayError ? amount : 0);
-
-        signal.addEventListener('abort', () => {
-          ac.abort();
-        });
+        }, doDelayError ? amount : 0));
       },
     });
   }
@@ -666,7 +585,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$9);
+    const completable = new Completable(subscribeActual$7);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -677,37 +596,27 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$a(observer) {
+  function subscribeActual$8(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler } = this;
-    const controller = new AbortController();
 
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
-    }
-
-    const abortable = scheduler.delay(() => {
-      this.source.subscribeWith({
-        onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
-        },
-        onComplete() {
-          onComplete();
-          controller.abort();
-        },
-        onError(x) {
-          onError(x);
-          controller.abort();
-        },
-      });
-    }, amount);
-
-    signal.addEventListener('abort', () => abortable.abort());
+    controller.link(
+      scheduler.delay(() => {
+        controller.unlink();
+        this.source.subscribeWith({
+          onSubscribe(ac) {
+            controller.link(ac);
+          },
+          onComplete,
+          onError,
+        });
+      }, amount),
+    );
   }
   /**
    * @ignore
@@ -720,7 +629,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$a);
+    const completable = new Completable(subscribeActual$8);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -730,7 +639,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$b(observer) {
+  function subscribeActual$9(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -755,7 +664,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$b);
+    const completable = new Completable(subscribeActual$9);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -764,7 +673,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$c(observer) {
+  function subscribeActual$a(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -772,7 +681,7 @@ var Completable = (function (AbortController, Scheduler) {
     let called = false;
     source.subscribeWith({
       onSubscribe(ac) {
-        ac.signal.addEventListener('abort', () => {
+        ac.addEventListener('cancel', () => {
           if (!called) {
             callable();
             called = true;
@@ -804,7 +713,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$c);
+    const completable = new Completable(subscribeActual$a);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -813,14 +722,14 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$d(observer) {
+  function subscribeActual$b(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
 
     source.subscribeWith({
       onSubscribe(ac) {
-        ac.signal.addEventListener('abort', callable);
+        ac.addEventListener('cancel', callable);
         onSubscribe(ac);
       },
       onComplete,
@@ -831,11 +740,11 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  var doOnAbort = (source, callable) => {
+  var doOnCancel = (source, callable) => {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$d);
+    const completable = new Completable(subscribeActual$b);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -844,7 +753,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$e(observer) {
+  function subscribeActual$c(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -866,7 +775,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$e);
+    const completable = new Completable(subscribeActual$c);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -875,7 +784,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$f(observer) {
+  function subscribeActual$d(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -898,7 +807,7 @@ var Completable = (function (AbortController, Scheduler) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$f);
+    const completable = new Completable(subscribeActual$d);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -907,7 +816,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$g(observer) {
+  function subscribeActual$e(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -932,7 +841,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$g);
+    const completable = new Completable(subscribeActual$e);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -941,7 +850,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$h(observer) {
+  function subscribeActual$f(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -963,7 +872,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$h);
+    const completable = new Completable(subscribeActual$f);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -972,7 +881,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$i(observer) {
+  function subscribeActual$g(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -997,7 +906,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$i);
+    const completable = new Completable(subscribeActual$g);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -1006,23 +915,16 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$j(observer) {
+  function subscribeActual$h(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
-    const controller = new AbortController();
 
-    onSubscribe(controller);
+    const emitter = new CompletableEmitter(onComplete, onError);
 
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    this.controller = controller;
-    this.onComplete = onComplete;
-    this.onError = onError;
+    onSubscribe(emitter);
 
     this.promise.then(
-      onCompleteHandler.bind(this),
-      onErrorHandler.bind(this),
+      () => emitter.onComplete(),
+      x => emitter.onError(x),
     );
   }
   /**
@@ -1032,7 +934,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isPromise(promise)) {
       return error(new Error('Completable.fromPromise: expects a Promise-like value.'));
     }
-    const completable = new Completable(subscribeActual$j);
+    const completable = new Completable(subscribeActual$h);
     completable.promise = promise;
     return completable;
   };
@@ -1040,43 +942,35 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$k(observer) {
+  function subscribeActual$i(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
+    const emitter = new CompletableEmitter(onComplete, onError);
 
-    onSubscribe(controller);
-
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    this.controller = controller;
-    this.onComplete = onComplete;
-    this.onError = onError;
-
-    const resolve = onCompleteHandler.bind(this);
-    const reject = onErrorHandler.bind(this);
-
+    onSubscribe(emitter);
 
     let result;
     try {
       result = this.callable();
     } catch (e) {
-      reject(e);
+      emitter.onError(e);
       return;
     }
 
     if (isPromise(result)) {
       fromPromise(result).subscribeWith({
         onSubscribe(ac) {
-          controller.signal.addEventListener('abort', () => ac.abort());
+          emitter.setCancellable(ac);
         },
-        onComplete: resolve,
-        onError: reject,
+        onComplete() {
+          emitter.onComplete();
+        },
+        onError(e) {
+          emitter.onError(e);
+        },
       });
     } else {
-      resolve();
+      emitter.onComplete();
     }
   }
   /**
@@ -1086,30 +980,22 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(callable)) {
       return error(new Error('Completable.fromCallable: callable received is not a function.'));
     }
-    const completable = new Completable(subscribeActual$k);
+    const completable = new Completable(subscribeActual$i);
     completable.callable = callable;
     return completable;
   };
 
-  function subscribeActual$l(observer) {
+  function subscribeActual$j(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
+    const emitter = new CompletableEmitter(onComplete, onError);
 
-    onSubscribe(controller);
+    onSubscribe(emitter);
 
-    if (controller.signal.aborted) {
-      return;
-    }
-
-    this.controller = controller;
-    this.onComplete = onComplete;
-    this.onError = onError;
-
-    const resolve = onCompleteHandler.bind(this);
-    const reject = onErrorHandler.bind(this);
-
-    this.subscriber(resolve, reject);
+    this.subscriber(
+      () => emitter.onComplete(),
+      x => emitter.onError(x),
+    );
   }
   /**
    * @ignore
@@ -1118,7 +1004,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(subscriber)) {
       return error(new Error('Completable.fromResolvable: expects a function.'));
     }
-    const completable = new Completable(subscribeActual$l);
+    const completable = new Completable(subscribeActual$j);
     completable.subscriber = subscriber;
     return completable;
   };
@@ -1126,7 +1012,7 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$m(observer) {
+  function subscribeActual$k(observer) {
     let result;
 
     try {
@@ -1150,7 +1036,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(operator)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$m);
+    const completable = new Completable(subscribeActual$k);
     completable.source = source;
     completable.operator = operator;
     return completable;
@@ -1161,63 +1047,47 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$n(observer) {
+  function subscribeActual$l(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.CompositeCancellable();
 
     onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
 
     const { sources } = this;
 
     const buffer = [];
     // eslint-disable-next-line no-restricted-syntax
     for (const completable of sources) {
-      if (signal.aborted) {
-        return;
-      }
       if (completable instanceof Completable) {
         buffer.unshift(completable);
       } else {
         onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
-        controller.abort();
-        break;
+        controller.cancel();
+        return;
       }
     }
 
-    if (signal.aborted) {
-      return;
-    }
-
     let pending = buffer.length;
-    let current;
     for (const completable of buffer) {
       completable.subscribeWith({
         onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
+          controller.add(ac);
         },
         onComplete() {
           pending -= 1;
 
           if (pending === 0) {
             onComplete();
-            controller.abort();
+            controller.cancel();
           }
         },
         onError(x) {
           onError(x);
-          controller.abort();
+          controller.cancel();
         },
       });
     }
-
-    current();
   }
   /**
    * @ignore
@@ -1226,72 +1096,10 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isIterable(sources)) {
       return error(new Error('Completable.concat: sources is not Iterable.'));
     }
-    const completable = new Completable(subscribeActual$n);
+    const completable = new Completable(subscribeActual$l);
     completable.sources = sources;
     return completable;
   };
-
-  /**
-   * @ignore
-   */
-  function subscribeActual$o(observer) {
-    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
-
-    const controller = new AbortController();
-
-    const { signal } = controller;
-
-    onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
-
-    const { source, other } = this;
-
-    let flagA = false;
-    let flagB = false;
-
-    source.subscribeWith({
-      onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
-      },
-      onComplete() {
-        flagA = true;
-
-        if (flagB) {
-          onComplete();
-          controller.abort();
-        }
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
-    });
-
-    other.subscribeWith({
-      onSubscribe(ac) {
-        if (signal.aborted) {
-          ac.abort();
-        } else {
-          signal.addEventListener('abort', () => ac.abort());
-        }
-      },
-      onComplete() {
-        flagB = true;
-
-        if (flagA) {
-          onComplete();
-          controller.abort();
-        }
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
-    });
-  }
 
   /**
    * @ignore
@@ -1300,32 +1108,16 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$o);
-    completable.source = source;
-    completable.other = other;
-    return completable;
+    return merge([source, other]);
   };
 
   /* eslint-disable class-methods-use-this */
 
-  const SIGNAL = {
-    aborted: false,
-    addEventListener: () => {},
-    removeEventListener: () => {},
-    onabort: () => {},
-  };
-
-
-  const CONTROLLER = {
-    signal: SIGNAL,
-    abort: () => {},
-  };
-
   /**
    * @ignore
    */
-  function subscribeActual$p(observer) {
-    observer.onSubscribe(CONTROLLER);
+  function subscribeActual$m(observer) {
+    observer.onSubscribe(rxCancellable.UNCANCELLED);
   }
   /**
    * @ignore
@@ -1336,41 +1128,31 @@ var Completable = (function (AbortController, Scheduler) {
    */
   var never = () => {
     if (typeof INSTANCE$1 === 'undefined') {
-      INSTANCE$1 = new Completable(subscribeActual$p);
-      INSTANCE$1.subscribeActual = subscribeActual$p.bind(INSTANCE$1);
+      INSTANCE$1 = new Completable(subscribeActual$m);
     }
     return INSTANCE$1;
   };
 
-  function subscribeActual$q(observer) {
+  function subscribeActual$n(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const { source, scheduler } = this;
 
-    const controller = new AbortController();
+    const controller = new rxCancellable.LinkedCancellable();
+
     onSubscribe(controller);
-
-    const { signal } = controller;
-
-    if (signal.aborted) {
-      return;
-    }
 
     source.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        controller.link(ac);
       },
       onComplete() {
-        scheduler.schedule(() => {
-          onComplete();
-          controller.abort();
-        });
+        controller.link(scheduler.schedule(onComplete));
       },
       onError(x) {
-        scheduler.schedule(() => {
+        controller.link(scheduler.schedule(() => {
           onError(x);
-          controller.abort();
-        });
+        }));
       },
     });
   }
@@ -1382,13 +1164,13 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$q);
+    const completable = new Completable(subscribeActual$n);
     completable.source = source;
     completable.scheduler = sched;
     return completable;
   };
 
-  function subscribeActual$r(observer) {
+  function subscribeActual$o(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, item } = this;
@@ -1419,36 +1201,29 @@ var Completable = (function (AbortController, Scheduler) {
     if (!isFunction(item)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$r);
+    const completable = new Completable(subscribeActual$o);
     completable.source = source;
     completable.item = item;
     return completable;
   };
 
-  function subscribeActual$s(observer) {
+  function subscribeActual$p(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, resumeIfError } = this;
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
-    }
-
     source.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        controller.link(ac);
       },
-      onComplete() {
-        onComplete();
-        controller.abort();
-      },
+      onComplete,
       onError(x) {
+        controller.unlink();
+
         let result;
 
         if (isFunction(resumeIfError)) {
@@ -1459,6 +1234,7 @@ var Completable = (function (AbortController, Scheduler) {
             }
           } catch (e) {
             onError(new Error([x, e]));
+            controller.cancel();
             return;
           }
         } else {
@@ -1467,16 +1243,10 @@ var Completable = (function (AbortController, Scheduler) {
 
         result.subscribeWith({
           onSubscribe(ac) {
-            signal.addEventListener('abort', () => ac.abort());
+            controller.link(ac);
           },
-          onComplete() {
-            onComplete();
-            controller.abort();
-          },
-          onError(v) {
-            onError(v);
-            controller.abort();
-          },
+          onComplete,
+          onError,
         });
       },
     });
@@ -1489,7 +1259,7 @@ var Completable = (function (AbortController, Scheduler) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$s);
+    const completable = new Completable(subscribeActual$p);
     completable.source = source;
     completable.resumeIfError = resumeIfError;
     return completable;
@@ -1498,32 +1268,24 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$t(observer) {
+  function subscribeActual$q(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
-    }
-
     const { source, times } = this;
 
-    let retries = 0;
+    let retries = -1;
 
     const sub = () => {
-      if (signal.aborted) {
-        return;
-      }
+      controller.unlink();
       retries += 1;
 
       source.subscribeWith({
         onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
+          controller.link(ac);
         },
         onComplete() {
           if (isNumber(times)) {
@@ -1531,15 +1293,13 @@ var Completable = (function (AbortController, Scheduler) {
               sub();
             } else {
               onComplete();
+              controller.cancel();
             }
           } else {
             sub();
           }
         },
-        onError(x) {
-          onError(x);
-          controller.abort();
-        },
+        onError,
       });
     };
 
@@ -1558,7 +1318,7 @@ var Completable = (function (AbortController, Scheduler) {
         return source;
       }
     }
-    const completable = new Completable(subscribeActual$t);
+    const completable = new Completable(subscribeActual$q);
     completable.source = source;
     completable.times = times;
     return completable;
@@ -1567,29 +1327,20 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$u(observer) {
+  function subscribeActual$r(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
 
     const { source, predicate } = this;
 
     const sub = () => {
-      if (signal.aborted) {
-        return;
-      }
-
+      controller.unlink();
       source.subscribeWith({
         onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
+          controller.link(ac);
         },
         onComplete() {
           if (isFunction(predicate)) {
@@ -1597,6 +1348,7 @@ var Completable = (function (AbortController, Scheduler) {
 
             if (result) {
               onComplete();
+              controller.cancel();
             } else {
               sub();
             }
@@ -1604,10 +1356,7 @@ var Completable = (function (AbortController, Scheduler) {
             sub();
           }
         },
-        onError(x) {
-          onError(x);
-          controller.abort();
-        },
+        onError,
       });
     };
 
@@ -1618,7 +1367,7 @@ var Completable = (function (AbortController, Scheduler) {
    * @ignore
    */
   var repeatUntil = (source, predicate) => {
-    const completable = new Completable(subscribeActual$u);
+    const completable = new Completable(subscribeActual$r);
     completable.source = source;
     completable.predicate = predicate;
     return completable;
@@ -1627,37 +1376,26 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$v(observer) {
+  function subscribeActual$s(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
-    if (signal.aborted) {
-      return;
-    }
-
     const { source, bipredicate } = this;
 
-    let retries = 0;
+    let retries = -1;
 
     const sub = () => {
-      if (signal.aborted) {
-        return;
-      }
+      controller.unlink();
       retries += 1;
 
       source.subscribeWith({
         onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
+          controller.link(ac);
         },
-        onComplete() {
-          onComplete();
-          controller.abort();
-        },
+        onComplete,
         onError(x) {
           if (isFunction(bipredicate)) {
             const result = bipredicate(retries, x);
@@ -1666,7 +1404,7 @@ var Completable = (function (AbortController, Scheduler) {
               sub();
             } else {
               onError(x);
-              controller.abort();
+              controller.cancel();
             }
           } else {
             sub();
@@ -1682,7 +1420,7 @@ var Completable = (function (AbortController, Scheduler) {
    * @ignore
    */
   var retry = (source, bipredicate) => {
-    const completable = new Completable(subscribeActual$v);
+    const completable = new Completable(subscribeActual$s);
     completable.source = source;
     completable.bipredicate = bipredicate;
     return completable;
@@ -1691,92 +1429,32 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$w(observer) {
-    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
-
-    const controller = new AbortController();
-
-    const { signal } = controller;
-
-    onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
-
-    const { source, other } = this;
-
-    other.subscribeWith({
-      onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
-      },
-      onComplete() {
-        source.subscribeWith({
-          onSubscribe(ac) {
-            signal.addEventListener('abort', () => ac.abort());
-          },
-          onComplete() {
-            onComplete();
-            controller.abort();
-          },
-          onError(x) {
-            onError(x);
-            controller.abort();
-          },
-        });
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
-    });
-  }
-
-  /**
-   * @ignore
-   */
   var startWith = (source, other) => {
     if (!(other instanceof Completable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$w);
-    completable.source = source;
-    completable.other = other;
-    return completable;
+    return concat([other, source]);
   };
 
-  function subscribeActual$x(observer) {
+  function subscribeActual$t(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const { source, scheduler } = this;
 
-    const controller = new AbortController();
+    const controller = new rxCancellable.LinkedCancellable();
+
     onSubscribe(controller);
 
-    const { signal } = controller;
-
-    if (signal.aborted) {
-      return;
-    }
-
-    scheduler.schedule(() => {
-      if (signal.aborted) {
-        return;
-      }
+    controller.link(scheduler.schedule(() => {
+      controller.unlink();
       source.subscribeWith({
         onSubscribe(ac) {
-          signal.addEventListener('abort', () => ac.abort());
+          controller.link(ac);
         },
-        onComplete() {
-          onComplete();
-          controller.abort();
-        },
-        onError(x) {
-          onError(x);
-          controller.abort();
-        },
+        onComplete,
+        onError,
       });
-    });
+    }));
   }
   /**
    * @ignore
@@ -1786,7 +1464,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$x);
+    const completable = new Completable(subscribeActual$t);
     completable.source = source;
     completable.scheduler = sched;
     return completable;
@@ -1795,50 +1473,40 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$y(observer) {
+  function subscribeActual$u(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.CompositeCancellable();
 
     onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
 
     const { source, other } = this;
 
     other.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        controller.add(ac);
       },
       onComplete() {
         onError(new Error('Completable.takeUntil: Source cancelled by other Completable.'));
-        controller.abort();
+        controller.cancel();
       },
       onError(x) {
         onError(new Error(['Completable.takeUntil: Source cancelled by other Completable.', x]));
-        controller.abort();
+        controller.cancel();
       },
     });
 
     source.subscribeWith({
       onSubscribe(ac) {
-        if (signal.aborted) {
-          ac.abort();
-        } else {
-          signal.addEventListener('abort', () => ac.abort());
-        }
+        controller.add(ac);
       },
       onComplete() {
         onComplete();
-        controller.abort();
+        controller.cancel();
       },
       onError(x) {
         onError(x);
-        controller.abort();
+        controller.cancel();
       },
     });
   }
@@ -1851,7 +1519,7 @@ var Completable = (function (AbortController, Scheduler) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$y);
+    const completable = new Completable(subscribeActual$u);
     completable.source = source;
     completable.other = other;
     return completable;
@@ -1860,43 +1528,31 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$z(observer) {
+  function subscribeActual$v(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler } = this;
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
+    const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
 
     const timeout = scheduler.delay(
       () => {
         onError(new Error('Completable.timeout: TimeoutException (no success signals within the specified timeout).'));
-        controller.abort();
+        controller.cancel();
       },
       amount,
     );
 
-    signal.addEventListener('abort', () => timeout.abort());
+    controller.addEventListener('cancel', () => timeout.cancel());
 
     this.source.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        controller.link(ac);
       },
-      onComplete() {
-        onComplete();
-        controller.abort();
-      },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
+      onComplete,
+      onError,
     });
   }
   /**
@@ -1910,7 +1566,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$z);
+    const completable = new Completable(subscribeActual$v);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -1920,22 +1576,10 @@ var Completable = (function (AbortController, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$A(observer) {
+  function subscribeActual$w(observer) {
     const { onComplete, onSubscribe } = cleanObserver(observer);
 
-    const controller = new AbortController();
-
-    const { signal } = controller;
-
-    onSubscribe(controller);
-
-    if (signal.aborted) {
-      return;
-    }
-
-    const timeout = this.scheduler.delay(() => onComplete(), this.amount);
-
-    signal.addEventListener('abort', () => timeout.abort());
+    onSubscribe(this.scheduler.delay(onComplete, this.amount));
   }
   /**
    * @ignore
@@ -1949,7 +1593,7 @@ var Completable = (function (AbortController, Scheduler) {
     if (!(sched instanceof Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$A);
+    const completable = new Completable(subscribeActual$w);
     completable.amount = amount;
     completable.scheduler = sched;
     return completable;
@@ -2003,8 +1647,8 @@ var Completable = (function (AbortController, Scheduler) {
    * onComplete are mutually exclusive events.
    *
    * Like Observable, a running Completable can be stopped through
-   * the AbortController instance provided to consumers through
-   * Observer.onSubscribe(AbortController).
+   * the Cancellable instance provided to consumers through
+   * Observer.onSubscribe(Cancellable).
    *
    * Like an Observable, a Completable is lazy, can be either
    * "hot" or "cold", synchronous or asynchronous.
@@ -2242,7 +1886,7 @@ var Completable = (function (AbortController, Scheduler) {
     /**
      * Calls the shared Action if a Observer subscribed
      * to the current Completable aborts the common
-     * Disposable it received via onSubscribe.
+     * Cancellable it received via onSubscribe.
      *
      * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnDispose.png" class="diagram">
      *
@@ -2250,8 +1894,8 @@ var Completable = (function (AbortController, Scheduler) {
      * the action to call when the child subscriber aborts the subscription.
      * @returns {Completable}
      */
-    doOnAbort(action) {
-      return doOnAbort(this, action);
+    doOnCancel(action) {
+      return doOnCancel(this, action);
     }
 
     /**
@@ -2300,12 +1944,12 @@ var Completable = (function (AbortController, Scheduler) {
 
     /**
      * Returns a Completable instance that calls the given onSubscribe
-     * callback with the AbortController that child subscribers receive
+     * callback with the Cancellable that child subscribers receive
      * on subscription.
      *
      * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnSubscribe.png" class="diagram">
      *
-     * @param {!function(ac: AbortController)} consumer
+     * @param {!function(ac: Cancellable)} consumer
      * the callback called when a child subscriber subscribes
      * @returns {Completable}
      */
@@ -2667,7 +2311,7 @@ var Completable = (function (AbortController, Scheduler) {
      *
      * The onSubscribe method is called when subscribeWith
      * or subscribe is executed. This method receives an
-     * AbortController instance.
+     * Cancellable instance.
      *
      * @param {!Object} observer
      * @returns {undefined}
@@ -2692,30 +2336,14 @@ var Completable = (function (AbortController, Scheduler) {
      * @param {?function(x: any)} onError
      * the function you have designed to accept any error
      * notification from the Completable
-     * @returns {AbortController}
-     * an AbortController reference can request the Completable to abort.
+     * @returns {Cancellable}
+     * an Cancellable reference can request the Completable to abort.
      */
     subscribe(onComplete, onError) {
-      const controller = new AbortController();
-      let once = false;
+      const controller = new rxCancellable.LinkedCancellable();
       this.subscribeWith({
         onSubscribe(ac) {
-          ac.signal.addEventListener('abort', () => {
-            if (!once) {
-              once = true;
-              if (!controller.signal.aborted) {
-                controller.abort();
-              }
-            }
-          });
-          controller.signal.addEventListener('abort', () => {
-            if (!once) {
-              once = true;
-              if (!ac.signal.aborted) {
-                ac.abort();
-              }
-            }
-          });
+          controller.link(ac);
         },
         onComplete,
         onError,
@@ -2759,21 +2387,31 @@ var Completable = (function (AbortController, Scheduler) {
   }
 
   /**
-   * @interface
-   * Represents an object that receives notification to
-   * an Observer.
+   * Provides a mechanism for receiving push-based notification of a valueless
+   * completion or an error.
    *
-   * Emitter is an abstraction layer of the Observer
-   */
-
-  /**
+   * When a CompletableObserver is subscribed to a Completable through the
+   * Completable.subscribe(CompletableObserver) method, the Completable calls
+   * onSubscribe(Cancellable) with a Cancellable that allows cancelling the
+   * sequence at any time. A well-behaved Completable will call a CompletableObserver's
+   * onError(Error) or onComplete() method exactly once as they are considered
+   * mutually exclusive terminal signals.
+   *
+   * the invocation pattern must adhere to the following protocol:
+   *
+   * <code>onSubscribe (onError | onComplete)?</code>
+   *
+   * Subscribing a CompletableObserver to multiple Completables is not recommended.
+   * If such reuse happens, it is the duty of the CompletableObserver implementation
+   * to be ready to receive multiple calls to its methods and ensure proper concurrent
+   * behavior of its business logic.
+   *
+   * Calling onSubscribe(Cancellable) or onError(Error) with a null argument is forbidden.
    * @interface
-   * Represents an object that receives notification from
-   * an Emitter.
    */
 
   /* eslint-disable no-unused-vars */
 
   return Completable;
 
-}(AbortController, Scheduler));
+}(Cancellable, Scheduler));
