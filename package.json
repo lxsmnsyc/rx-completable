@@ -8,14 +8,14 @@
     "linux-test": "./node_modules/.bin/nyc --reporter=html npm run linux-mocha",
     "linux-docs": "./node_modules/.bin/esdoc",
     "linux-cjs": "./node_modules/.bin/rollup src/index.js --format cjs --name \"Completable\" --file index.js",
-    "linux-browser": "./node_modules/.bin/rollup src/index.js --format iife --name \"Completable\" --file dist/index.js",
+    "linux-browser": "./node_modules/.bin/rollup src/index.js --format iife --name \"Completable\" --file dist/index.js -g \"rx-cancellable:Cancellable\"",
     "linux-minify": "npm run linux-browser && ./node_modules/.bin/terser dist/index.js --compress --mangle --output dist/index.min.js",
     "linux-build": "npm run linux-cjs && npm run linux-minify && npm run linux-docs && npm run linux-test",
     "win-mocha": "node node_modules/mocha/bin/mocha --require @babel/register -R spec --recursive",
     "win-test": "node node_modules/nyc/bin/nyc.js --reporter=html npm run win-mocha",
     "win-docs": "node node_modules/esdoc/out/src/ESDocCLI.js",
     "win-cjs": "node node_modules/.bin/rollup src/index.js --format cjs --name \"Completable\" --file index.js",
-    "win-browser": "node node_modules/.bin/rollup src/index.js --format iife --name \"Completable\" --file dist/index.js",
+    "win-browser": "node node_modules/.bin/rollup src/index.js --format iife --name \"Completable\" --file dist/index.js -g \"rx-cancellable:Cancellable\"",
     "win-minify": "npm run win-browser && node node_modules/.bin/terser dist/index.js --compress --mangle --output dist/index.min.js",
     "win-build": "npm run win-cjs && npm run win-minify && npm run win-docs && npm run win-test",
     "mocha": "npm run linux-mocha || npm run win-mocha",
@@ -60,7 +60,7 @@
     "terser": "^3.17.0"
   },
   "dependencies": {
-    "abort-controller": "^2.0.3",
-    "rx-scheduler": "^0.1.1"
+    "rx-cancellable": "^0.2.0",
+    "rx-scheduler": "^0.2.3"
   }
 }
