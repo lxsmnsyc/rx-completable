@@ -50,17 +50,17 @@ describe('#create', () => {
   /**
    *
    */
-  it('should be aborted successfully if emitter is aborted before any signal.', (done) => {
+  it('should be cancelled successfully if emitter is cancelled before any signal.', (done) => {
     const completable = Completable.create((e) => {
-      setTimeout(e.onComplete, 100);
+      setTimeout(() => e.onComplete(), 100);
     });
 
     const controller = completable.subscribe(
       () => done(false),
       () => done(false),
     );
-    controller.abort();
-    if (controller.signal.aborted) {
+    controller.cancel();
+    if (controller.cancelled) {
       done();
     }
   });
