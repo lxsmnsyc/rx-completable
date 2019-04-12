@@ -38,15 +38,15 @@
  * @external {PromiseLike} https://promisesaplus.com/
  */
 /**
- * @external {AbortController} https://developer.mozilla.org/en-US/docs/Web/API/AbortController
+ * @external {Cancellable} https://lxsmnsyc.github.io/rx-cancellable/
  */
-import AbortController from 'abort-controller';
+import { LinkedCancellable } from 'rx-cancellable';
 import { isObserver } from './internal/utils';
 import {
   amb, ambWith, andThen, cache, complete,
   compose, concat, create, defer, delay,
   delaySubscription, doAfterTerminate,
-  doFinally, doOnAbort, doOnComplete,
+  doFinally, doOnCancel, doOnComplete,
   doOnError, doOnEvent, doOnSubscribe,
   doOnTerminate, error, fromCallable,
   fromPromise, fromResolvable, lift, merge,
@@ -74,8 +74,8 @@ import {
  * onComplete are mutually exclusive events.
  *
  * Like Observable, a running Completable can be stopped through
- * the AbortController instance provided to consumers through
- * Observer.onSubscribe(AbortController).
+ * the Cancellable instance provided to consumers through
+ * Observer.onSubscribe(Cancellable).
  *
  * Like an Observable, a Completable is lazy, can be either
  * "hot" or "cold", synchronous or asynchronous.
@@ -313,7 +313,7 @@ export default class Completable {
   /**
    * Calls the shared Action if a Observer subscribed
    * to the current Completable aborts the common
-   * Disposable it received via onSubscribe.
+   * Cancellable it received via onSubscribe.
    *
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnDispose.png" class="diagram">
    *
@@ -321,8 +321,8 @@ export default class Completable {
    * the action to call when the child subscriber aborts the subscription.
    * @returns {Completable}
    */
-  doOnAbort(action) {
-    return doOnAbort(this, action);
+  doOnCancel(action) {
+    return doOnCancel(this, action);
   }
 
   /**
@@ -371,12 +371,12 @@ export default class Completable {
 
   /**
    * Returns a Completable instance that calls the given onSubscribe
-   * callback with the AbortController that child subscribers receive
+   * callback with the Cancellable that child subscribers receive
    * on subscription.
    *
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doOnSubscribe.png" class="diagram">
    *
-   * @param {!function(ac: AbortController)} consumer
+   * @param {!function(ac: Cancellable)} consumer
    * the callback called when a child subscriber subscribes
    * @returns {Completable}
    */
@@ -738,7 +738,7 @@ export default class Completable {
    *
    * The onSubscribe method is called when subscribeWith
    * or subscribe is executed. This method receives an
-   * AbortController instance.
+   * Cancellable instance.
    *
    * @param {!Object} observer
    * @returns {undefined}
@@ -763,30 +763,14 @@ export default class Completable {
    * @param {?function(x: any)} onError
    * the function you have designed to accept any error
    * notification from the Completable
-   * @returns {AbortController}
-   * an AbortController reference can request the Completable to abort.
+   * @returns {Cancellable}
+   * an Cancellable reference can request the Completable to abort.
    */
   subscribe(onComplete, onError) {
-    const controller = new AbortController();
-    let once = false;
+    const controller = new LinkedCancellable();
     this.subscribeWith({
       onSubscribe(ac) {
-        ac.signal.addEventListener('abort', () => {
-          if (!once) {
-            once = true;
-            if (!controller.signal.aborted) {
-              controller.abort();
-            }
-          }
-        });
-        controller.signal.addEventListener('abort', () => {
-          if (!once) {
-            once = true;
-            if (!ac.signal.aborted) {
-              ac.abort();
-            }
-          }
-        });
+        controller.link(ac);
       },
       onComplete,
       onError,
