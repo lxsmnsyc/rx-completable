@@ -1,9 +1,7 @@
-import AbortController from 'abort-controller';
-import {
-  onErrorHandler, onCompleteHandler, cleanObserver, isFunction,
-} from '../utils';
+import { cleanObserver } from '../utils';
 import Completable from '../../completable';
 import error from './error';
+import CompletableEmitter from '../../emitter';
 
 /**
  * @ignore
@@ -11,13 +9,7 @@ import error from './error';
 function subscribeActual(observer) {
   const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
-  const emitter = new AbortController();
-  emitter.onComplete = onCompleteHandler.bind(this);
-  emitter.onError = onErrorHandler.bind(this);
-
-  this.controller = emitter;
-  this.onComplete = onComplete;
-  this.onError = onError;
+  const emitter = new CompletableEmitter(onComplete, onError);
 
   onSubscribe(emitter);
 
@@ -31,11 +23,10 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (subscriber) => {
-  if (!isFunction(subscriber)) {
+  if (typeof subscriber !== 'function') {
     return error(new Error('Completable.create: There are no subscribers.'));
   }
-  const single = new Completable(subscribeActual);
-  single.subscriber = subscriber;
-  single.subscribeActual = subscribeActual.bind(single);
-  return single;
+  const completable = new Completable(subscribeActual);
+  completable.subscriber = subscriber;
+  return completable;
 };
