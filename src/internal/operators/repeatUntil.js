@@ -1,4 +1,4 @@
-import AbortController from 'abort-controller';
+import { LinkedCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { cleanObserver, isFunction } from '../utils';
 
@@ -8,26 +8,17 @@ import { cleanObserver, isFunction } from '../utils';
 function subscribeActual(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
-  const controller = new AbortController();
-
-  const { signal } = controller;
+  const controller = new LinkedCancellable();
 
   onSubscribe(controller);
-
-  if (signal.aborted) {
-    return;
-  }
 
   const { source, predicate } = this;
 
   const sub = () => {
-    if (signal.aborted) {
-      return;
-    }
-
+    controller.unlink();
     source.subscribeWith({
       onSubscribe(ac) {
-        signal.addEventListener('abort', () => ac.abort());
+        controller.link(ac);
       },
       onComplete() {
         if (isFunction(predicate)) {
@@ -35,6 +26,7 @@ function subscribeActual(observer) {
 
           if (result) {
             onComplete();
+            controller.cancel();
           } else {
             sub();
           }
@@ -42,10 +34,7 @@ function subscribeActual(observer) {
           sub();
         }
       },
-      onError(x) {
-        onError(x);
-        controller.abort();
-      },
+      onError,
     });
   };
 
