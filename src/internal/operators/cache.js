@@ -1,4 +1,4 @@
-import AbortController from 'abort-controller';
+import { BooleanCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { cleanObserver } from '../utils';
 
@@ -16,9 +16,9 @@ function subscribeActual(observer) {
     const index = observers.length;
     observers[index] = observer;
 
-    const controller = new AbortController();
+    const controller = new BooleanCancellable();
 
-    controller.signal.addEventListener('abort', () => {
+    controller.addEventListener('cancel', () => {
       observers.splice(index, 1);
     });
 
@@ -36,6 +36,7 @@ function subscribeActual(observer) {
           for (const obs of observers) {
             obs.onComplete();
           }
+          controller.cancel();
           this.observers = undefined;
         },
         onError: (x) => {
@@ -46,13 +47,14 @@ function subscribeActual(observer) {
           for (const obs of observers) {
             obs.onError(x);
           }
+          controller.cancel();
           this.observers = undefined;
         },
       });
       this.subscribed = true;
     }
   } else {
-    const controller = new AbortController();
+    const controller = new BooleanCancellable();
     onSubscribe(controller);
 
     const { error } = this;
@@ -61,7 +63,7 @@ function subscribeActual(observer) {
     } else {
       onComplete();
     }
-    controller.abort();
+    controller.cancel();
   }
 }
 
