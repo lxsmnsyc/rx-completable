@@ -1,4 +1,5 @@
-import AbortController from 'abort-controller';
+import { BooleanCancellable } from 'rx-cancellable';
+
 /**
  * @ignore
  */
@@ -39,39 +40,6 @@ export const isPromise = (obj) => {
 /**
  * @ignore
  */
-export function onCompleteHandler() {
-  const { onComplete, controller } = this;
-  if (controller.signal.aborted) {
-    return;
-  }
-  try {
-    onComplete();
-  } finally {
-    controller.abort();
-  }
-}
-/**
- * @ignore
- */
-export function onErrorHandler(err) {
-  const { onError, controller } = this;
-  let report = err;
-  if (!(err instanceof Error)) {
-    report = new Error('onError called with a non-Error value.');
-  }
-  if (controller.signal.aborted) {
-    return;
-  }
-
-  try {
-    onError(report);
-  } finally {
-    controller.abort();
-  }
-}
-/**
- * @ignore
- */
 const identity = x => x;
 /**
  * @ignore
@@ -91,12 +59,12 @@ export const cleanObserver = x => ({
 export const immediateComplete = (o) => {
   // const disposable = new SimpleDisposable();
   const { onSubscribe, onComplete } = cleanObserver(o);
-  const controller = new AbortController();
+  const controller = new BooleanCancellable();
   onSubscribe(controller);
 
-  if (!controller.signal.aborted) {
+  if (!controller.cancelled) {
     onComplete();
-    controller.abort();
+    controller.cancel();
   }
 };
 /**
@@ -104,11 +72,11 @@ export const immediateComplete = (o) => {
  */
 export const immediateError = (o, x) => {
   const { onSubscribe, onError } = cleanObserver(o);
-  const controller = new AbortController();
+  const controller = new BooleanCancellable();
   onSubscribe(controller);
 
-  if (!controller.signal.aborted) {
+  if (!controller.cancelled) {
     onError(x);
-    controller.abort();
+    controller.cancel();
   }
 };
