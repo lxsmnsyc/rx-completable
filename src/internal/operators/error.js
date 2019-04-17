@@ -1,4 +1,6 @@
-import { toCallable, immediateError } from '../utils';
+import {
+  toCallable, immediateError, isFunction, isOf, isNull,
+} from '../utils';
 import Completable from '../../completable';
 
 /**
@@ -10,7 +12,7 @@ function subscribeActual(observer) {
   try {
     err = this.supplier();
 
-    if (err == null) {
+    if (isNull(err)) {
       throw new Error('Completable.error: Error supplier returned a null value.');
     }
   } catch (e) {
@@ -23,11 +25,11 @@ function subscribeActual(observer) {
  */
 export default (value) => {
   let report = value;
-  if (!(value instanceof Error || typeof value === 'function')) {
+  if (!(isOf(value, Error) || isFunction(value))) {
     report = new Error('Completable.error received a non-Error value.');
   }
 
-  if (typeof value !== 'function') {
+  if (!isFunction(report)) {
     report = toCallable(report);
   }
   const completable = new Completable(subscribeActual);
