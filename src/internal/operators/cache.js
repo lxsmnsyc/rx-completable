@@ -1,6 +1,6 @@
 import { BooleanCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
-import { cleanObserver } from '../utils';
+import { cleanObserver, isNull } from '../utils';
 
 /**
  * @ignore
@@ -58,7 +58,7 @@ function subscribeActual(observer) {
     onSubscribe(controller);
 
     const { error } = this;
-    if (error != null) {
+    if (isNull(error)) {
       onError(error);
     } else {
       onComplete();
