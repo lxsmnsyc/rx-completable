@@ -1,11 +1,11 @@
-import Completable from '../../completable';
-import merge from './merge';
+import mergeArray from './mergeArray';
+import is from '../is';
 /**
  * @ignore
  */
 export default (source, other) => {
-  if (!(other instanceof Completable)) {
+  if (!is(other)) {
     return source;
   }
-  return merge([source, other]);
+  return mergeArray([source, other]);
 };
