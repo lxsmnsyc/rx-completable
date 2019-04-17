@@ -501,10 +501,6 @@ var Completable = (function (rxCancellable, Scheduler) {
   };
 
   /**
-   * @ignore
-   */
-  const LINK = new WeakMap();
-  /**
    * Abstraction over a CompletableObserver that allows associating
    * a resource with it.
    *
@@ -525,7 +521,7 @@ var Completable = (function (rxCancellable, Scheduler) {
        */
       this.error = error;
 
-      LINK.set(this, new rxCancellable.BooleanCancellable());
+      this.link = new rxCancellable.BooleanCancellable();
     }
 
     /**
@@ -533,7 +529,7 @@ var Completable = (function (rxCancellable, Scheduler) {
      * @returns {boolean}
      */
     get cancelled() {
-      return LINK.get(this).cancelled;
+      return this.link.cancelled;
     }
 
     /**
@@ -541,7 +537,7 @@ var Completable = (function (rxCancellable, Scheduler) {
      * @returns {boolean}
      */
     cancel() {
-      return LINK.get(this).cancel();
+      return this.link.cancel();
     }
 
     /**
@@ -559,8 +555,8 @@ var Completable = (function (rxCancellable, Scheduler) {
           this.cancel();
           return true;
         } else {
-          const link = LINK.get(this);
-          LINK.set(this, cancellable);
+          const { link } = this;
+          this.link = cancellable;
           link.cancel();
           return true;
         }
