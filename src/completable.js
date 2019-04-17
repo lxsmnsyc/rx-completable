@@ -53,7 +53,7 @@ import {
   mergeWith, never, onErrorComplete,
   onErrorResumeNext, repeat, retry,
   startWith, timeout, timer, takeUntil,
-  repeatUntil, observeOn, subscribeOn,
+  repeatUntil, observeOn, subscribeOn, ambArray, concatArray, mergeArray,
 } from './internal/operators';
 
 /**
@@ -98,7 +98,7 @@ export default class Completable {
   /**
    * Returns a Completable which terminates as soon as
    * one of the source Completables terminates
-   * (normally or with an error) and disposes all
+   * (normally or with an error) and cancels all
    * other Completables.
    *
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.amb.png" class="diagram">
@@ -111,6 +111,22 @@ export default class Completable {
    */
   static amb(sources) {
     return amb(sources);
+  }
+
+  /**
+   * Returns a Completable which terminates as soon as one of
+   * the source Completables terminates (normally or with an error)
+   * and cancels all other Completables.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.ambArray.png" class="diagram">
+   *
+   * @param {!Array} sources
+   *  the array of source Completables. A subscription to each source
+   * will occur in the same order as in this array.
+   * @returns {Completable}
+   */
+  static ambArray(sources) {
+    return ambArray(sources);
   }
 
   /**
@@ -195,6 +211,20 @@ export default class Completable {
    */
   static concat(sources) {
     return concat(sources);
+  }
+
+  /**
+   * Returns a Completable which completes only when all sources complete,
+   * one after another.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.concatArray.png" class="diagram">
+   *
+   * @param {!Array} sources
+   * the sources to concatenate
+   * @returns {Completable}
+   */
+  static concatArray(sources) {
+    return concatArray(sources);
   }
 
   /**
@@ -300,7 +330,7 @@ export default class Completable {
    * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doFinally.png" class="diagram">
    *
    * In case of a race between a terminal event and
-   * a dispose call, the provided onFinally action
+   * a cancel call, the provided onFinally action
    * is executed once per subscription.
    * @param {!function} action
    * the action called when this Completable terminates or gets aborted.
@@ -512,6 +542,21 @@ export default class Completable {
    */
   static merge(sources) {
     return merge(sources);
+  }
+
+  /**
+   * Returns a Completable instance that subscribes to all sources at once
+   * and completes only when all source Completables complete or one of them
+   * emits an error.
+   *
+   * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.mergeArray.png" class="diagram">
+   *
+   * @param {Array} sources
+   * the array of sources.
+   * @returns {Completable}
+   */
+  static mergeArray(sources) {
+    return mergeArray(sources);
   }
 
   /**
