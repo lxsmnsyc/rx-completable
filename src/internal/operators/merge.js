@@ -4,6 +4,7 @@ import { CompositeCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { isIterable, cleanObserver } from '../utils';
 import error from './error';
+import is from '../is';
 
 /**
  * @ignore
@@ -20,10 +21,10 @@ function subscribeActual(observer) {
   const buffer = [];
   // eslint-disable-next-line no-restricted-syntax
   for (const completable of sources) {
-    if (completable instanceof Completable) {
+    if (is(completable)) {
       buffer.unshift(completable);
     } else {
-      onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+      onError(new Error('Completable.merge: One of the sources is a non-Completable.'));
       controller.cancel();
       return;
     }
@@ -55,7 +56,7 @@ function subscribeActual(observer) {
  */
 export default (sources) => {
   if (!isIterable(sources)) {
-    return error(new Error('Completable.concat: sources is not Iterable.'));
+    return error(new Error('Completable.merge: sources is not Iterable.'));
   }
   const completable = new Completable(subscribeActual);
   completable.sources = sources;
