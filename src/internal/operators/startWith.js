@@ -1,12 +1,12 @@
-import concat from './concat';
-import Completable from '../../completable';
+import concatArray from './concatArray';
+import is from '../is';
 
 /**
  * @ignore
  */
 export default (source, other) => {
-  if (!(other instanceof Completable)) {
+  if (!is(other)) {
     return source;
   }
-  return concat([other, source]);
+  return concatArray([other, source]);
 };
