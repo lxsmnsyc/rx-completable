@@ -1,20 +1,15 @@
 import Completable from '../../completable';
-import { immediateComplete } from '../utils';
-
+import { immediateComplete, isNull } from '../utils';
 /**
  * @ignore
  */
-function subscribeActual(observer) {
-  immediateComplete(observer);
-}
-
 let INSTANCE;
 /**
  * @ignore
  */
 export default () => {
-  if (typeof INSTANCE === 'undefined') {
-    INSTANCE = new Completable(subscribeActual);
+  if (isNull(INSTANCE)) {
+    INSTANCE = new Completable(o => immediateComplete(o));
   }
   return INSTANCE;
 };
