@@ -75,6 +75,10 @@ npm run build
 ```
 
 ## Changelogs
+* 0.8.0
+  - Performance boost
+  - added `ambArray`, `concatArray` and `mergeArray`
+  - fixed error typos
 * 0.7.0
   - Replaced AbortController with [Cancellable](https://lxsmnsyc.github.io/rx-cancellable/).
   - Renamed `doOnAbort` with `doOnCancel`
