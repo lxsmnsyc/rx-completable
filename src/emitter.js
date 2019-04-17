@@ -1,9 +1,4 @@
 import { Cancellable, BooleanCancellable } from 'rx-cancellable';
-
-/**
- * @ignore
- */
-const LINK = new WeakMap();
 /**
  * Abstraction over a CompletableObserver that allows associating
  * a resource with it.
@@ -25,7 +20,7 @@ export default class CompletableEmitter extends Cancellable {
      */
     this.error = error;
 
-    LINK.set(this, new BooleanCancellable());
+    this.link = new BooleanCancellable();
   }
 
   /**
@@ -33,7 +28,7 @@ export default class CompletableEmitter extends Cancellable {
    * @returns {boolean}
    */
   get cancelled() {
-    return LINK.get(this).cancelled;
+    return this.link.cancelled;
   }
 
   /**
@@ -41,7 +36,7 @@ export default class CompletableEmitter extends Cancellable {
    * @returns {boolean}
    */
   cancel() {
-    return LINK.get(this).cancel();
+    return this.link.cancel();
   }
 
   /**
@@ -59,8 +54,8 @@ export default class CompletableEmitter extends Cancellable {
         this.cancel();
         return true;
       } else {
-        const link = LINK.get(this);
-        LINK.set(this, cancellable);
+        const { link } = this;
+        this.link = cancellable;
         link.cancel();
         return true;
       }
