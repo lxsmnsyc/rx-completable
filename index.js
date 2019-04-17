@@ -275,50 +275,36 @@ function subscribeActual$3(observer) {
 
   const { sources } = this;
   const { length } = sources;
-  const buffer = [];
   // eslint-disable-next-line no-restricted-syntax
   for (let i = 0; i < length; i += 1) {
     const completable = sources[i];
-    if (is(completable)) {
-      buffer.unshift(completable);
-    } else {
+    if (!is(completable)) {
       onError(new Error('Completable.concatArray: One of the sources is a non-Completable.'));
       controller.cancel();
       return;
     }
   }
 
-  let current;
-  for (let i = 0; i < length; i += 1) {
-    const completable = buffer[i];
-    if (isNull(current)) {
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete,
-          onError,
-        });
-      };
-    } else {
-      const prev = current;
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete() {
-            controller.unlink();
-            prev();
-          },
-          onError,
-        });
-      };
-    }
-  }
+  let counter = 0;
+  const sub = () => {
+    controller.unlink();
+    sources[0].subscribeWith({
+      onSubscribe(c) {
+        controller.link(c);
+      },
+      onComplete() {
+        counter += 1;
 
-  current();
+        if (counter === length) {
+          onComplete();
+        } else {
+          sub();
+        }
+      },
+      onError,
+    });
+  };
+  sub();
 }
 /**
  * @ignore
@@ -474,7 +460,7 @@ function subscribeActual$5(observer) {
   // eslint-disable-next-line no-restricted-syntax
   for (const completable of sources) {
     if (is(completable)) {
-      buffer.unshift(completable);
+      buffer.push(completable);
     } else {
       onError(new Error('Completable.concat: One of the sources is a non-Completable.'));
       controller.cancel();
@@ -482,36 +468,27 @@ function subscribeActual$5(observer) {
     }
   }
 
-  let current;
-  for (const completable of buffer) {
-    if (isNull(current)) {
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete,
-          onError,
-        });
-      };
-    } else {
-      const prev = current;
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete() {
-            controller.unlink();
-            prev();
-          },
-          onError,
-        });
-      };
-    }
-  }
+  const { length } = buffer;
+  let counter = 0;
+  const sub = () => {
+    controller.unlink();
+    buffer[0].subscribeWith({
+      onSubscribe(c) {
+        controller.link(c);
+      },
+      onComplete() {
+        counter += 1;
 
-  current();
+        if (counter === length) {
+          onComplete();
+        } else {
+          sub();
+        }
+      },
+      onError,
+    });
+  };
+  sub();
 }
 /**
  * @ignore
