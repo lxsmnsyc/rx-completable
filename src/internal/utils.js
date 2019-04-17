@@ -20,6 +20,22 @@ export const isObject = x => isType(x, 'object');
 /**
  * @ignore
  */
+export const isNull = x => x == null;
+/**
+ * @ignore
+ */
+export const exists = x => x != null;
+/**
+ * @ignore
+ */
+export const isOf = (x, y) => x instanceof y;
+/**
+ * @ignore
+ */
+export const isArray = x => isOf(x, Array);
+/**
+ * @ignore
+ */
 export const isIterable = obj => isObject(obj) && isFunction(obj[Symbol.iterator]);
 /**
  * @ignore
@@ -34,7 +50,7 @@ export const toCallable = x => () => x;
  */
 export const isPromise = (obj) => {
   if (obj == null) return false;
-  if (obj instanceof Promise) return true;
+  if (isOf(obj, Promise)) return true;
   return (isObject(obj) || isFunction(obj)) && isFunction(obj.then);
 };
 /**
