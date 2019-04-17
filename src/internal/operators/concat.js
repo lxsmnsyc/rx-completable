@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-syntax */
 import { LinkedCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
-import { isIterable, cleanObserver, isNull } from '../utils';
+import { isIterable, cleanObserver } from '../utils';
 import error from './error';
 import is from '../is';
 
@@ -21,7 +21,7 @@ function subscribeActual(observer) {
   // eslint-disable-next-line no-restricted-syntax
   for (const completable of sources) {
     if (is(completable)) {
-      buffer.unshift(completable);
+      buffer.push(completable);
     } else {
       onError(new Error('Completable.concat: One of the sources is a non-Completable.'));
       controller.cancel();
@@ -29,36 +29,27 @@ function subscribeActual(observer) {
     }
   }
 
-  let current;
-  for (const completable of buffer) {
-    if (isNull(current)) {
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete,
-          onError,
-        });
-      };
-    } else {
-      const prev = current;
-      current = () => {
-        completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.link(ac);
-          },
-          onComplete() {
-            controller.unlink();
-            prev();
-          },
-          onError,
-        });
-      };
-    }
-  }
+  const { length } = buffer;
+  let counter = 0;
+  const sub = () => {
+    controller.unlink();
+    buffer[0].subscribeWith({
+      onSubscribe(c) {
+        controller.link(c);
+      },
+      onComplete() {
+        counter += 1;
 
-  current();
+        if (counter === length) {
+          onComplete();
+        } else {
+          sub();
+        }
+      },
+      onError,
+    });
+  };
+  sub();
 }
 /**
  * @ignore
