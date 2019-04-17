@@ -1,7 +1,9 @@
+/* eslint-disable no-restricted-syntax */
 import { CompositeCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { isIterable, cleanObserver } from '../utils';
 import error from './error';
+import is from '../is';
 
 /**
  * @ignore
@@ -15,16 +17,15 @@ function subscribeActual(observer) {
 
   const { sources } = this;
 
-  // eslint-disable-next-line no-restricted-syntax
   for (const completable of sources) {
     if (controller.cancelled) {
       return;
     }
 
-    if (completable instanceof Completable) {
+    if (is(completable)) {
       completable.subscribeWith({
-        onSubscribe(ac) {
-          controller.add(ac);
+        onSubscribe(c) {
+          controller.add(c);
         },
         // eslint-disable-next-line no-loop-func
         onComplete() {
