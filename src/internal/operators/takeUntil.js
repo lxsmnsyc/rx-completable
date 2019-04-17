@@ -1,6 +1,7 @@
 import { CompositeCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
 import { cleanObserver } from '../utils';
+import is from '../is';
 
 /**
  * @ignore
@@ -47,7 +48,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 const takeUntil = (source, other) => {
-  if (!(other instanceof Completable)) {
+  if (!is(other)) {
     return source;
   }
 
