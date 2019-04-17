@@ -1,11 +1,13 @@
 /* eslint-disable import/no-cycle */
 export { default as amb } from './operators/amb';
+export { default as ambArray } from './operators/ambArray';
 export { default as ambWith } from './operators/ambWith';
 export { default as andThen } from './operators/andThen';
 export { default as cache } from './operators/cache';
 export { default as complete } from './operators/complete';
 export { default as compose } from './operators/compose';
 export { default as concat } from './operators/concat';
+export { default as concatArray } from './operators/concatArray';
 export { default as create } from './operators/create';
 export { default as defer } from './operators/defer';
 export { default as delay } from './operators/delay';
@@ -24,6 +26,7 @@ export { default as fromPromise } from './operators/fromPromise';
 export { default as fromResolvable } from './operators/fromResolvable';
 export { default as lift } from './operators/lift';
 export { default as merge } from './operators/merge';
+export { default as mergeArray } from './operators/mergeArray';
 export { default as mergeWith } from './operators/mergeWith';
 export { default as never } from './operators/never';
 export { default as observeOn } from './operators/observeOn';
