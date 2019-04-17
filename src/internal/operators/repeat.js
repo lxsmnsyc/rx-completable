@@ -1,6 +1,6 @@
 import { LinkedCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
-import { cleanObserver, isNumber } from '../utils';
+import { cleanObserver, isNumber, exists } from '../utils';
 
 /**
  * @ignore
@@ -47,7 +47,7 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, times) => {
-  if (times != null) {
+  if (exists(times)) {
     if (!isNumber(times)) {
       return source;
     }
