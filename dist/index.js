@@ -23,6 +23,22 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
+  const isNull = x => x == null;
+  /**
+   * @ignore
+   */
+  const exists = x => x != null;
+  /**
+   * @ignore
+   */
+  const isOf = (x, y) => x instanceof y;
+  /**
+   * @ignore
+   */
+  const isArray = x => isOf(x, Array);
+  /**
+   * @ignore
+   */
   const isIterable = obj => isObject(obj) && isFunction(obj[Symbol.iterator]);
   /**
    * @ignore
@@ -37,7 +53,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   const isPromise = (obj) => {
     if (obj == null) return false;
-    if (obj instanceof Promise) return true;
+    if (isOf(obj, Promise)) return true;
     return (isObject(obj) || isFunction(obj)) && isFunction(obj.then);
   };
   /**
@@ -93,7 +109,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     try {
       err = this.supplier();
 
-      if (err == null) {
+      if (isNull(err)) {
         throw new Error('Completable.error: Error supplier returned a null value.');
       }
     } catch (e) {
@@ -106,17 +122,24 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   var error = (value) => {
     let report = value;
-    if (!(value instanceof Error || typeof value === 'function')) {
+    if (!(isOf(value, Error) || isFunction(value))) {
       report = new Error('Completable.error received a non-Error value.');
     }
 
-    if (typeof value !== 'function') {
+    if (!isFunction(report)) {
       report = toCallable(report);
     }
     const completable = new Completable(subscribeActual);
     completable.supplier = report;
     return completable;
   };
+
+  /**
+   * @ignore
+   */
+  var is = y => y instanceof Completable;
+
+  /* eslint-disable no-restricted-syntax */
 
   /**
    * @ignore
@@ -130,16 +153,15 @@ var Completable = (function (rxCancellable, Scheduler) {
 
     const { sources } = this;
 
-    // eslint-disable-next-line no-restricted-syntax
     for (const completable of sources) {
       if (controller.cancelled) {
         return;
       }
 
-      if (completable instanceof Completable) {
+      if (is(completable)) {
         completable.subscribeWith({
-          onSubscribe(ac) {
-            controller.add(ac);
+          onSubscribe(c) {
+            controller.add(c);
           },
           // eslint-disable-next-line no-loop-func
           onComplete() {
@@ -170,16 +192,6 @@ var Completable = (function (rxCancellable, Scheduler) {
     return completable;
   };
 
-  /**
-   * @ignore
-   */
-  var ambWith = (source, other) => {
-    if (!(other instanceof Completable)) {
-      return source;
-    }
-    return amb([source, other]);
-  };
-
   /* eslint-disable no-restricted-syntax */
 
   /**
@@ -188,27 +200,96 @@ var Completable = (function (rxCancellable, Scheduler) {
   function subscribeActual$2(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
+    const { sources } = this;
+    const { length } = sources;
+
+    if (length === 0) {
+      immediateError(observer, new Error('Completable.ambArray: sources Array is empty.'));
+    } else {
+      const controller = new rxCancellable.CompositeCancellable();
+
+      onSubscribe(controller);
+
+      for (let i = 0; i < length; i += 1) {
+        const completable = sources[i];
+        if (controller.cancelled) {
+          return;
+        }
+        if (is(completable)) {
+          completable.subscribeWith({
+            onSubscribe(c) {
+              controller.add(c);
+            },
+            onComplete() {
+              onComplete();
+              controller.cancel();
+            },
+            onError(x) {
+              onError(x);
+              controller.cancel();
+            },
+          });
+        } else {
+          onError(new Error('Completable.ambArray: One of the sources is a non-Completable.'));
+          controller.cancel();
+          break;
+        }
+      }
+    }
+  }
+  /**
+   * @ignore
+   */
+  var ambArray = (sources) => {
+    if (!isArray(sources)) {
+      return error(new Error('Completable.ambArray: sources is not an Array.'));
+    }
+    const completable = new Completable(subscribeActual$2);
+    completable.sources = sources;
+    return completable;
+  };
+
+  /**
+   * @ignore
+   */
+  var ambWith = (source, other) => {
+    if (!is(other)) {
+      return source;
+    }
+    return ambArray([source, other]);
+  };
+
+  /* eslint-disable no-restricted-syntax */
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$3(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
     const controller = new rxCancellable.LinkedCancellable();
 
     onSubscribe(controller);
 
     const { sources } = this;
-
+    const { length } = sources;
     const buffer = [];
     // eslint-disable-next-line no-restricted-syntax
-    for (const completable of sources) {
-      if (completable instanceof Completable) {
+    for (let i = 0; i < length; i += 1) {
+      const completable = sources[i];
+      if (is(completable)) {
         buffer.unshift(completable);
       } else {
-        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        onError(new Error('Completable.concatArray: One of the sources is a non-Completable.'));
         controller.cancel();
         return;
       }
     }
 
     let current;
-    for (const completable of buffer) {
-      if (typeof current === 'undefined') {
+    for (let i = 0; i < length; i += 1) {
+      const completable = buffer[i];
+      if (isNull(current)) {
         current = () => {
           completable.subscribeWith({
             onSubscribe(ac) {
@@ -240,11 +321,11 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  var concat = (sources) => {
-    if (!isIterable(sources)) {
-      return error(new Error('Completable.concat: sources is not Iterable.'));
+  var concatArray = (sources) => {
+    if (!isArray(sources)) {
+      return error(new Error('Completable.concatArray: sources is non-Array.'));
     }
-    const completable = new Completable(subscribeActual$2);
+    const completable = new Completable(subscribeActual$3);
     completable.sources = sources;
     return completable;
   };
@@ -253,16 +334,16 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var andThen = (source, other) => {
-    if (!(other instanceof Completable)) {
+    if (!is(other)) {
       return source;
     }
-    return concat([source, other]);
+    return concatArray([source, other]);
   };
 
   /**
    * @ignore
    */
-  function subscribeActual$3(observer) {
+  function subscribeActual$4(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const {
@@ -315,7 +396,7 @@ var Completable = (function (rxCancellable, Scheduler) {
       onSubscribe(controller);
 
       const { error } = this;
-      if (error != null) {
+      if (isNull(error)) {
         onError(error);
       } else {
         onComplete();
@@ -328,7 +409,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var cache = (source) => {
-    const completable = new Completable(subscribeActual$3);
+    const completable = new Completable(subscribeActual$4);
     completable.source = source;
     completable.cached = false;
     completable.subscribed = false;
@@ -339,17 +420,13 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$4(observer) {
-    immediateComplete(observer);
-  }
-
   let INSTANCE;
   /**
    * @ignore
    */
   var complete = () => {
-    if (typeof INSTANCE === 'undefined') {
-      INSTANCE = new Completable(subscribeActual$4);
+    if (isNull(INSTANCE)) {
+      INSTANCE = new Completable(o => immediateComplete(o));
     }
     return INSTANCE;
   };
@@ -367,7 +444,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     try {
       result = transformer(source);
 
-      if (!(result instanceof Completable)) {
+      if (!is(result)) {
         throw new Error('Completable.compose: transformer returned a non-Completable.');
       }
     } catch (e) {
@@ -375,6 +452,75 @@ var Completable = (function (rxCancellable, Scheduler) {
     }
 
     return result;
+  };
+
+  /* eslint-disable no-restricted-syntax */
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$5(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new rxCancellable.LinkedCancellable();
+
+    onSubscribe(controller);
+
+    const { sources } = this;
+
+    const buffer = [];
+    // eslint-disable-next-line no-restricted-syntax
+    for (const completable of sources) {
+      if (is(completable)) {
+        buffer.unshift(completable);
+      } else {
+        onError(new Error('Completable.concat: One of the sources is a non-Completable.'));
+        controller.cancel();
+        return;
+      }
+    }
+
+    let current;
+    for (const completable of buffer) {
+      if (isNull(current)) {
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              controller.link(ac);
+            },
+            onComplete,
+            onError,
+          });
+        };
+      } else {
+        const prev = current;
+        current = () => {
+          completable.subscribeWith({
+            onSubscribe(ac) {
+              controller.link(ac);
+            },
+            onComplete() {
+              controller.unlink();
+              prev();
+            },
+            onError,
+          });
+        };
+      }
+    }
+
+    current();
+  }
+  /**
+   * @ignore
+   */
+  var concat = (sources) => {
+    if (!isIterable(sources)) {
+      return error(new Error('Completable.concat: sources is not Iterable.'));
+    }
+    const completable = new Completable(subscribeActual$5);
+    completable.sources = sources;
+    return completable;
   };
 
   /**
@@ -484,7 +630,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$5(observer) {
+  function subscribeActual$6(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const emitter = new CompletableEmitter(onComplete, onError);
@@ -501,10 +647,10 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var create = (subscriber) => {
-    if (typeof subscriber !== 'function') {
+    if (!isFunction(subscriber)) {
       return error(new Error('Completable.create: There are no subscribers.'));
     }
-    const completable = new Completable(subscribeActual$5);
+    const completable = new Completable(subscribeActual$6);
     completable.subscriber = subscriber;
     return completable;
   };
@@ -512,7 +658,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$6(observer) {
+  function subscribeActual$7(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     let result;
@@ -520,14 +666,14 @@ var Completable = (function (rxCancellable, Scheduler) {
     let err;
     try {
       result = this.supplier();
-      if (!(result instanceof Completable)) {
+      if (!is(result)) {
         throw new Error('Completable.defer: supplier returned a non-Completable.');
       }
     } catch (e) {
       err = e;
     }
 
-    if (err != null) {
+    if (exists(err)) {
       immediateError(observer, err);
     } else {
       result.subscribeWith({
@@ -541,7 +687,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var defer = (supplier) => {
-    const completable = new Completable(subscribeActual$6);
+    const completable = new Completable(subscribeActual$7);
     completable.supplier = supplier;
     return completable;
   };
@@ -549,7 +695,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$7(observer) {
+  function subscribeActual$8(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler, doDelayError } = this;
@@ -582,10 +728,10 @@ var Completable = (function (rxCancellable, Scheduler) {
       return source;
     }
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$7);
+    const completable = new Completable(subscribeActual$8);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -596,7 +742,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$8(observer) {
+  function subscribeActual$9(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler } = this;
@@ -626,10 +772,10 @@ var Completable = (function (rxCancellable, Scheduler) {
       return source;
     }
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$8);
+    const completable = new Completable(subscribeActual$9);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -639,7 +785,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$9(observer) {
+  function subscribeActual$a(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -664,7 +810,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$9);
+    const completable = new Completable(subscribeActual$a);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -673,7 +819,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$a(observer) {
+  function subscribeActual$b(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -713,7 +859,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$a);
+    const completable = new Completable(subscribeActual$b);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -722,7 +868,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$b(observer) {
+  function subscribeActual$c(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -744,7 +890,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$b);
+    const completable = new Completable(subscribeActual$c);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -753,7 +899,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$c(observer) {
+  function subscribeActual$d(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -775,7 +921,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$c);
+    const completable = new Completable(subscribeActual$d);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -784,7 +930,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$d(observer) {
+  function subscribeActual$e(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -807,7 +953,7 @@ var Completable = (function (rxCancellable, Scheduler) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$d);
+    const completable = new Completable(subscribeActual$e);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -816,7 +962,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$e(observer) {
+  function subscribeActual$f(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -841,7 +987,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$e);
+    const completable = new Completable(subscribeActual$f);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -850,7 +996,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$f(observer) {
+  function subscribeActual$g(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -872,7 +1018,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$f);
+    const completable = new Completable(subscribeActual$g);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -881,7 +1027,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$g(observer) {
+  function subscribeActual$h(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, callable } = this;
@@ -906,7 +1052,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$g);
+    const completable = new Completable(subscribeActual$h);
     completable.source = source;
     completable.callable = callable;
     return completable;
@@ -915,7 +1061,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$h(observer) {
+  function subscribeActual$i(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const emitter = new CompletableEmitter(onComplete, onError);
@@ -934,7 +1080,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isPromise(promise)) {
       return error(new Error('Completable.fromPromise: expects a Promise-like value.'));
     }
-    const completable = new Completable(subscribeActual$h);
+    const completable = new Completable(subscribeActual$i);
     completable.promise = promise;
     return completable;
   };
@@ -942,7 +1088,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$i(observer) {
+  function subscribeActual$j(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const emitter = new CompletableEmitter(onComplete, onError);
@@ -980,12 +1126,12 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(callable)) {
       return error(new Error('Completable.fromCallable: callable received is not a function.'));
     }
-    const completable = new Completable(subscribeActual$i);
+    const completable = new Completable(subscribeActual$j);
     completable.callable = callable;
     return completable;
   };
 
-  function subscribeActual$j(observer) {
+  function subscribeActual$k(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const emitter = new CompletableEmitter(onComplete, onError);
@@ -1004,7 +1150,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(subscriber)) {
       return error(new Error('Completable.fromResolvable: expects a function.'));
     }
-    const completable = new Completable(subscribeActual$j);
+    const completable = new Completable(subscribeActual$k);
     completable.subscriber = subscriber;
     return completable;
   };
@@ -1012,7 +1158,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$k(observer) {
+  function subscribeActual$l(observer) {
     let result;
 
     try {
@@ -1036,7 +1182,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(operator)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$k);
+    const completable = new Completable(subscribeActual$l);
     completable.source = source;
     completable.operator = operator;
     return completable;
@@ -1047,7 +1193,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$l(observer) {
+  function subscribeActual$m(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const controller = new rxCancellable.CompositeCancellable();
@@ -1059,10 +1205,10 @@ var Completable = (function (rxCancellable, Scheduler) {
     const buffer = [];
     // eslint-disable-next-line no-restricted-syntax
     for (const completable of sources) {
-      if (completable instanceof Completable) {
+      if (is(completable)) {
         buffer.unshift(completable);
       } else {
-        onError(new Error('Completable.amb: One of the sources is a non-Completable.'));
+        onError(new Error('Completable.merge: One of the sources is a non-Completable.'));
         controller.cancel();
         return;
       }
@@ -1094,9 +1240,67 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   var merge = (sources) => {
     if (!isIterable(sources)) {
-      return error(new Error('Completable.concat: sources is not Iterable.'));
+      return error(new Error('Completable.merge: sources is not Iterable.'));
     }
-    const completable = new Completable(subscribeActual$l);
+    const completable = new Completable(subscribeActual$m);
+    completable.sources = sources;
+    return completable;
+  };
+
+  /* eslint-disable no-loop-func */
+
+  /**
+   * @ignore
+   */
+  function subscribeActual$n(observer) {
+    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+
+    const controller = new rxCancellable.CompositeCancellable();
+
+    onSubscribe(controller);
+
+    const { sources } = this;
+    const { length } = sources;
+    // eslint-disable-next-line no-restricted-syntax
+    for (let i = 0; i < length; i += 1) {
+      const completable = sources[i];
+      if (is(completable)) ; else {
+        onError(new Error('Completable.mergeArray: One of the sources is a non-Completable.'));
+        controller.cancel();
+        return;
+      }
+    }
+
+    let pending = length;
+    for (let i = 0; i < length; i += 1) {
+      const completable = sources[i];
+      completable.subscribeWith({
+        onSubscribe(ac) {
+          controller.add(ac);
+        },
+        onComplete() {
+          pending -= 1;
+
+          if (pending === 0) {
+            onComplete();
+            controller.cancel();
+          }
+        },
+        onError(x) {
+          onError(x);
+          controller.cancel();
+        },
+      });
+    }
+  }
+  /**
+   * @ignore
+   */
+  var mergeArray = (sources) => {
+    if (!isArray(sources)) {
+      return error(new Error('Completable.merge: sources is non-Array.'));
+    }
+    const completable = new Completable(subscribeActual$n);
     completable.sources = sources;
     return completable;
   };
@@ -1105,10 +1309,10 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var mergeWith = (source, other) => {
-    if (!(other instanceof Completable)) {
+    if (!is(other)) {
       return source;
     }
-    return merge([source, other]);
+    return mergeArray([source, other]);
   };
 
   /* eslint-disable class-methods-use-this */
@@ -1116,7 +1320,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$m(observer) {
+  function subscribeActual$o(observer) {
     observer.onSubscribe(rxCancellable.UNCANCELLED);
   }
   /**
@@ -1128,12 +1332,12 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   var never = () => {
     if (typeof INSTANCE$1 === 'undefined') {
-      INSTANCE$1 = new Completable(subscribeActual$m);
+      INSTANCE$1 = new Completable(subscribeActual$o);
     }
     return INSTANCE$1;
   };
 
-  function subscribeActual$n(observer) {
+  function subscribeActual$p(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const { source, scheduler } = this;
@@ -1161,16 +1365,16 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   var observeOn = (source, scheduler) => {
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$n);
+    const completable = new Completable(subscribeActual$p);
     completable.source = source;
     completable.scheduler = sched;
     return completable;
   };
 
-  function subscribeActual$o(observer) {
+  function subscribeActual$q(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, item } = this;
@@ -1201,13 +1405,13 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isFunction(item)) {
       return source;
     }
-    const completable = new Completable(subscribeActual$o);
+    const completable = new Completable(subscribeActual$q);
     completable.source = source;
     completable.item = item;
     return completable;
   };
 
-  function subscribeActual$p(observer) {
+  function subscribeActual$r(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { source, resumeIfError } = this;
@@ -1259,7 +1463,7 @@ var Completable = (function (rxCancellable, Scheduler) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$p);
+    const completable = new Completable(subscribeActual$r);
     completable.source = source;
     completable.resumeIfError = resumeIfError;
     return completable;
@@ -1268,7 +1472,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$q(observer) {
+  function subscribeActual$s(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const controller = new rxCancellable.LinkedCancellable();
@@ -1310,7 +1514,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var repeat = (source, times) => {
-    if (times != null) {
+    if (exists(times)) {
       if (!isNumber(times)) {
         return source;
       }
@@ -1318,7 +1522,7 @@ var Completable = (function (rxCancellable, Scheduler) {
         return source;
       }
     }
-    const completable = new Completable(subscribeActual$q);
+    const completable = new Completable(subscribeActual$s);
     completable.source = source;
     completable.times = times;
     return completable;
@@ -1327,7 +1531,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$r(observer) {
+  function subscribeActual$t(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const controller = new rxCancellable.LinkedCancellable();
@@ -1367,7 +1571,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var repeatUntil = (source, predicate) => {
-    const completable = new Completable(subscribeActual$r);
+    const completable = new Completable(subscribeActual$t);
     completable.source = source;
     completable.predicate = predicate;
     return completable;
@@ -1376,7 +1580,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$s(observer) {
+  function subscribeActual$u(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const controller = new rxCancellable.LinkedCancellable();
@@ -1420,7 +1624,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var retry = (source, bipredicate) => {
-    const completable = new Completable(subscribeActual$s);
+    const completable = new Completable(subscribeActual$u);
     completable.source = source;
     completable.bipredicate = bipredicate;
     return completable;
@@ -1430,13 +1634,13 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var startWith = (source, other) => {
-    if (!(other instanceof Completable)) {
+    if (!is(other)) {
       return source;
     }
-    return concat([other, source]);
+    return concatArray([other, source]);
   };
 
-  function subscribeActual$t(observer) {
+  function subscribeActual$v(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const { source, scheduler } = this;
@@ -1461,10 +1665,10 @@ var Completable = (function (rxCancellable, Scheduler) {
    */
   var subscribeOn = (source, scheduler) => {
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$t);
+    const completable = new Completable(subscribeActual$v);
     completable.source = source;
     completable.scheduler = sched;
     return completable;
@@ -1473,7 +1677,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$u(observer) {
+  function subscribeActual$w(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
 
     const controller = new rxCancellable.CompositeCancellable();
@@ -1515,11 +1719,11 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   const takeUntil = (source, other) => {
-    if (!(other instanceof Completable)) {
+    if (!is(other)) {
       return source;
     }
 
-    const completable = new Completable(subscribeActual$u);
+    const completable = new Completable(subscribeActual$w);
     completable.source = source;
     completable.other = other;
     return completable;
@@ -1528,7 +1732,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$v(observer) {
+  function subscribeActual$x(observer) {
     const { onComplete, onError, onSubscribe } = cleanObserver(observer);
 
     const { amount, scheduler } = this;
@@ -1563,10 +1767,10 @@ var Completable = (function (rxCancellable, Scheduler) {
       return source;
     }
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$v);
+    const completable = new Completable(subscribeActual$x);
     completable.source = source;
     completable.amount = amount;
     completable.scheduler = sched;
@@ -1576,7 +1780,7 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  function subscribeActual$w(observer) {
+  function subscribeActual$y(observer) {
     const { onComplete, onSubscribe } = cleanObserver(observer);
 
     onSubscribe(this.scheduler.delay(onComplete, this.amount));
@@ -1590,10 +1794,10 @@ var Completable = (function (rxCancellable, Scheduler) {
     }
 
     let sched = scheduler;
-    if (!(sched instanceof Scheduler.interface)) {
+    if (!isOf(sched, Scheduler.interface)) {
       sched = Scheduler.current;
     }
-    const completable = new Completable(subscribeActual$w);
+    const completable = new Completable(subscribeActual$y);
     completable.amount = amount;
     completable.scheduler = sched;
     return completable;
@@ -1671,7 +1875,7 @@ var Completable = (function (rxCancellable, Scheduler) {
     /**
      * Returns a Completable which terminates as soon as
      * one of the source Completables terminates
-     * (normally or with an error) and disposes all
+     * (normally or with an error) and cancels all
      * other Completables.
      *
      * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.amb.png" class="diagram">
@@ -1684,6 +1888,22 @@ var Completable = (function (rxCancellable, Scheduler) {
      */
     static amb(sources) {
       return amb(sources);
+    }
+
+    /**
+     * Returns a Completable which terminates as soon as one of
+     * the source Completables terminates (normally or with an error)
+     * and cancels all other Completables.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.ambArray.png" class="diagram">
+     *
+     * @param {!Array} sources
+     *  the array of source Completables. A subscription to each source
+     * will occur in the same order as in this array.
+     * @returns {Completable}
+     */
+    static ambArray(sources) {
+      return ambArray(sources);
     }
 
     /**
@@ -1768,6 +1988,20 @@ var Completable = (function (rxCancellable, Scheduler) {
      */
     static concat(sources) {
       return concat(sources);
+    }
+
+    /**
+     * Returns a Completable which completes only when all sources complete,
+     * one after another.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.concatArray.png" class="diagram">
+     *
+     * @param {!Array} sources
+     * the sources to concatenate
+     * @returns {Completable}
+     */
+    static concatArray(sources) {
+      return concatArray(sources);
     }
 
     /**
@@ -1873,7 +2107,7 @@ var Completable = (function (rxCancellable, Scheduler) {
      * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.doFinally.png" class="diagram">
      *
      * In case of a race between a terminal event and
-     * a dispose call, the provided onFinally action
+     * a cancel call, the provided onFinally action
      * is executed once per subscription.
      * @param {!function} action
      * the action called when this Completable terminates or gets aborted.
@@ -2085,6 +2319,21 @@ var Completable = (function (rxCancellable, Scheduler) {
      */
     static merge(sources) {
       return merge(sources);
+    }
+
+    /**
+     * Returns a Completable instance that subscribes to all sources at once
+     * and completes only when all source Completables complete or one of them
+     * emits an error.
+     *
+     * <img src="https://raw.githubusercontent.com/LXSMNSYC/rx-completable/master/assets/images/Completable.mergeArray.png" class="diagram">
+     *
+     * @param {Array} sources
+     * the array of sources.
+     * @returns {Completable}
+     */
+    static mergeArray(sources) {
+      return mergeArray(sources);
     }
 
     /**
