@@ -1,5 +1,6 @@
 import Completable from '../../completable';
-import { immediateError, cleanObserver } from '../utils';
+import { immediateError, cleanObserver, exists } from '../utils';
+import is from '../is';
 
 /**
  * @ignore
@@ -12,14 +13,14 @@ function subscribeActual(observer) {
   let err;
   try {
     result = this.supplier();
-    if (!(result instanceof Completable)) {
+    if (!is(result)) {
       throw new Error('Completable.defer: supplier returned a non-Completable.');
     }
   } catch (e) {
     err = e;
   }
 
-  if (err != null) {
+  if (exists(err)) {
     immediateError(observer, err);
   } else {
     result.subscribeWith({
