@@ -1,7 +1,6 @@
-import Scheduler from 'rx-scheduler';
 import { LinkedCancellable } from 'rx-cancellable';
 import Completable from '../../completable';
-import { cleanObserver, isOf } from '../utils';
+import { cleanObserver, defaultScheduler } from '../utils';
 
 function subscribeActual(observer) {
   const { onSubscribe, onComplete, onError } = cleanObserver(observer);
@@ -30,12 +29,8 @@ function subscribeActual(observer) {
  * @ignore
  */
 export default (source, scheduler) => {
-  let sched = scheduler;
-  if (!isOf(sched, Scheduler.interface)) {
-    sched = Scheduler.current;
-  }
   const completable = new Completable(subscribeActual);
   completable.source = source;
-  completable.scheduler = sched;
+  completable.scheduler = defaultScheduler(scheduler);
   return completable;
 };
