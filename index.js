@@ -1468,7 +1468,6 @@ function subscribeActual$s(observer) {
             sub();
           } else {
             onComplete();
-            controller.cancel();
           }
         } else {
           sub();
@@ -1523,7 +1522,6 @@ function subscribeActual$t(observer) {
 
           if (result) {
             onComplete();
-            controller.cancel();
           } else {
             sub();
           }
