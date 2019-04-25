@@ -1,6 +1,5 @@
-import Scheduler from 'rx-scheduler';
 import Completable from '../../completable';
-import { cleanObserver, isNumber, isOf } from '../utils';
+import { cleanObserver, isNumber, defaultScheduler } from '../utils';
 import error from './error';
 
 /**
@@ -18,13 +17,8 @@ export default (amount, scheduler) => {
   if (!isNumber(amount)) {
     return error(new Error('Completable.timer: "amount" is not a number.'));
   }
-
-  let sched = scheduler;
-  if (!isOf(sched, Scheduler.interface)) {
-    sched = Scheduler.current;
-  }
   const completable = new Completable(subscribeActual);
   completable.amount = amount;
-  completable.scheduler = sched;
+  completable.scheduler = defaultScheduler(scheduler);
   return completable;
 };
