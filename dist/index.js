@@ -1395,8 +1395,6 @@ var Completable = (function (rxCancellable, Scheduler) {
       },
       onComplete,
       onError(x) {
-        controller.unlink();
-
         let result;
 
         if (isFunction(resumeIfError)) {
@@ -1407,13 +1405,13 @@ var Completable = (function (rxCancellable, Scheduler) {
             }
           } catch (e) {
             onError(new Error([x, e]));
-            controller.cancel();
             return;
           }
         } else {
           result = resumeIfError;
         }
 
+        controller.unlink();
         result.subscribeWith({
           onSubscribe(ac) {
             controller.link(ac);
@@ -1575,7 +1573,6 @@ var Completable = (function (rxCancellable, Scheduler) {
               sub();
             } else {
               onError(x);
-              controller.cancel();
             }
           } else {
             sub();
