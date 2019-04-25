@@ -1466,7 +1466,6 @@ var Completable = (function (rxCancellable, Scheduler) {
               sub();
             } else {
               onComplete();
-              controller.cancel();
             }
           } else {
             sub();
@@ -1521,7 +1520,6 @@ var Completable = (function (rxCancellable, Scheduler) {
 
             if (result) {
               onComplete();
-              controller.cancel();
             } else {
               sub();
             }
