@@ -99,6 +99,14 @@ var Completable = (function (rxCancellable, Scheduler) {
       controller.cancel();
     }
   };
+  /**
+   * @ignore
+   */
+  const defaultScheduler = sched => (
+    isOf(sched, Scheduler.interface)
+      ? sched
+      : Scheduler.current
+  );
 
   /**
    * @ignore
@@ -700,14 +708,10 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isNumber(amount)) {
       return source;
     }
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$8);
     completable.source = source;
     completable.amount = amount;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     completable.doDelayError = doDelayError;
     return completable;
   };
@@ -744,14 +748,10 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isNumber(amount)) {
       return source;
     }
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$9);
     completable.source = source;
     completable.amount = amount;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     return completable;
   };
 
@@ -1337,13 +1337,9 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var observeOn = (source, scheduler) => {
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$p);
     completable.source = source;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     return completable;
   };
 
@@ -1637,13 +1633,9 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   var subscribeOn = (source, scheduler) => {
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$v);
     completable.source = source;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     return completable;
   };
 
@@ -1739,14 +1731,10 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isNumber(amount)) {
       return source;
     }
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$x);
     completable.source = source;
     completable.amount = amount;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     return completable;
   };
 
@@ -1765,14 +1753,9 @@ var Completable = (function (rxCancellable, Scheduler) {
     if (!isNumber(amount)) {
       return error(new Error('Completable.timer: "amount" is not a number.'));
     }
-
-    let sched = scheduler;
-    if (!isOf(sched, Scheduler.interface)) {
-      sched = Scheduler.current;
-    }
     const completable = new Completable(subscribeActual$y);
     completable.amount = amount;
-    completable.scheduler = sched;
+    completable.scheduler = defaultScheduler(scheduler);
     return completable;
   };
 
