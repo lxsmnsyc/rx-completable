@@ -260,12 +260,11 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  var ambWith = (source, other) => {
-    if (!is(other)) {
-      return source;
-    }
-    return ambArray([source, other]);
-  };
+  var ambWith = (source, other) => (
+    !is(other)
+      ? source
+      : ambArray([source, other])
+  );
 
   /* eslint-disable no-restricted-syntax */
 
@@ -327,12 +326,11 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  var andThen = (source, other) => {
-    if (!is(other)) {
-      return source;
-    }
-    return concatArray([source, other]);
-  };
+  var andThen = (source, other) => (
+    !is(other)
+      ? source
+      : concatArray([source, other])
+  );
 
   /**
    * @ignore
@@ -1281,12 +1279,11 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  var mergeWith = (source, other) => {
-    if (!is(other)) {
-      return source;
-    }
-    return mergeArray([source, other]);
-  };
+  var mergeWith = (source, other) => (
+    !is(other)
+      ? source
+      : mergeArray([source, other])
+  );
 
   /* eslint-disable class-methods-use-this */
 
@@ -1597,12 +1594,11 @@ var Completable = (function (rxCancellable, Scheduler) {
   /**
    * @ignore
    */
-  var startWith = (source, other) => {
-    if (!is(other)) {
-      return source;
-    }
-    return concatArray([other, source]);
-  };
+  var startWith = (source, other) => (
+    !is(other)
+      ? source
+      : concatArray([source, other])
+  );
 
   function subscribeActual$v(observer) {
     const { onSubscribe, onComplete, onError } = cleanObserver(observer);
