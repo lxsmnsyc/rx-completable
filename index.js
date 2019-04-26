@@ -528,8 +528,10 @@ class CompletableEmitter extends rxCancellable.Cancellable {
      * @ignore
      */
     this.error = error;
-
-    this.link = new rxCancellable.BooleanCancellable();
+    /**
+     * @ignore
+     */
+    this.linked = new rxCancellable.BooleanCancellable();
   }
 
   /**
@@ -537,7 +539,7 @@ class CompletableEmitter extends rxCancellable.Cancellable {
    * @returns {boolean}
    */
   get cancelled() {
-    return this.link.cancelled;
+    return this.linked.cancelled;
   }
 
   /**
@@ -545,7 +547,11 @@ class CompletableEmitter extends rxCancellable.Cancellable {
    * @returns {boolean}
    */
   cancel() {
-    return this.link.cancel();
+    if (!this.cancelled) {
+      this.events.cancel.forEach(f => f.apply(this));
+      return this.linked.cancel();
+    }
+    return false;
   }
 
   /**
@@ -563,9 +569,9 @@ class CompletableEmitter extends rxCancellable.Cancellable {
         this.cancel();
         return true;
       } else {
-        const { link } = this;
-        this.link = cancellable;
-        link.cancel();
+        const { linked } = this;
+        this.linked = cancellable;
+        linked.cancel();
         return true;
       }
     }
