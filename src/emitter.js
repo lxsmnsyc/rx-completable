@@ -19,8 +19,10 @@ export default class CompletableEmitter extends Cancellable {
      * @ignore
      */
     this.error = error;
-
-    this.link = new BooleanCancellable();
+    /**
+     * @ignore
+     */
+    this.linked = new BooleanCancellable();
   }
 
   /**
@@ -28,7 +30,7 @@ export default class CompletableEmitter extends Cancellable {
    * @returns {boolean}
    */
   get cancelled() {
-    return this.link.cancelled;
+    return this.linked.cancelled;
   }
 
   /**
@@ -36,7 +38,11 @@ export default class CompletableEmitter extends Cancellable {
    * @returns {boolean}
    */
   cancel() {
-    return this.link.cancel();
+    if (!this.cancelled) {
+      this.events.cancel.forEach(f => f.apply(this));
+      return this.linked.cancel();
+    }
+    return false;
   }
 
   /**
@@ -54,9 +60,9 @@ export default class CompletableEmitter extends Cancellable {
         this.cancel();
         return true;
       } else {
-        const { link } = this;
-        this.link = cancellable;
-        link.cancel();
+        const { linked } = this;
+        this.linked = cancellable;
+        linked.cancel();
         return true;
       }
     }
