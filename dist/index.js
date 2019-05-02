@@ -336,7 +336,7 @@ var Completable = (function (rxCancellable, Scheduler) {
    * @ignore
    */
   function subscribeActual$4(observer) {
-    const { onComplete, onError, onSubscribe } = cleanObserver(observer);
+    const cleaned = cleanObserver(observer);
 
     const {
       source, cached, observers, subscribed,
@@ -344,7 +344,7 @@ var Completable = (function (rxCancellable, Scheduler) {
 
     if (!cached) {
       const index = observers.length;
-      observers[index] = observer;
+      observers[index] = cleaned;
 
       const controller = new rxCancellable.BooleanCancellable();
 
@@ -352,7 +352,7 @@ var Completable = (function (rxCancellable, Scheduler) {
         observers.splice(index, 1);
       });
 
-      onSubscribe(controller);
+      cleaned.onSubscribe(controller);
 
       if (!subscribed) {
         source.subscribeWith({
@@ -385,13 +385,13 @@ var Completable = (function (rxCancellable, Scheduler) {
       }
     } else {
       const controller = new rxCancellable.BooleanCancellable();
-      onSubscribe(controller);
+      cleaned.onSubscribe(controller);
 
       const { error } = this;
       if (isNull(error)) {
-        onError(error);
+        cleaned.onError(error);
       } else {
-        onComplete();
+        cleaned.onComplete();
       }
       controller.cancel();
     }
