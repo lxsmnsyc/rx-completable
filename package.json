@@ -1,6 +1,6 @@
 {
   "name": "rx-completable",
-  "version": "0.8.9",
+  "version": "0.8.10",
   "description": "Reactive Extensions - represents a deferred computation without any value but only indication for completion or exception. ",
   "main": "index.js",
   "scripts": {
