@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 import assert from 'assert';
+import Scheduler from 'rx-scheduler';
 import Completable from '../src/completable';
 
 
@@ -71,7 +72,7 @@ describe('#timeout', () => {
    *
    */
   it('should not signal error if cancelled.', (done) => {
-    const source = Completable.error(new Error('Hello')).delay(200).timeout(100);
+    const source = Completable.error(new Error('Hello')).delay(200, Scheduler.current, true).timeout(100);
     const controller = source.subscribe(
       () => done(false),
       () => done(false),
