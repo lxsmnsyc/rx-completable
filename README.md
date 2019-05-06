@@ -75,6 +75,8 @@ npm run build
 ```
 
 ## Changelogs
+* 0.8.9
+  - Cancellable and Scheduler update compliance
 * 0.8.0
   - Performance boost
   - added `ambArray`, `concatArray` and `mergeArray`
