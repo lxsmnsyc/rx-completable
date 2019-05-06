@@ -1,5 +1,6 @@
 /* eslint-disable no-undef */
 import assert from 'assert';
+import Scheduler from 'rx-scheduler';
 import Completable from '../src/completable';
 
 /**
@@ -38,7 +39,7 @@ describe('#takeUntil', () => {
    *
    */
   it('should signal complete if other Completable has not emitted an error signal', (done) => {
-    const completable = Completable.complete().takeUntil(Completable.error(new Error('World')).delay(100));
+    const completable = Completable.complete().takeUntil(Completable.error(new Error('World')).delay(100, Scheduler.current, true));
 
     completable.subscribe(
       () => done(),
